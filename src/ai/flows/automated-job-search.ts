@@ -22,7 +22,7 @@ export type AutomatedJobSearchInput = z.infer<typeof AutomatedJobSearchInputSche
 
 const AutomatedJobSearchOutputSchema = z.object({
   jobPostings: z
-    .array(z.string().url().describe('A direct, publicly accessible URL to an individual job posting.'))
+    .array(z.string().describe('A direct, publicly accessible URL string to an individual job posting. This must be a valid URL.'))
     .min(1, "At least one job posting link must be returned.") // Ensure at least one link is returned
     .max(10, "No more than 10 job posting links should be returned.") // Limit to 10 links
     .describe('A list of direct links to relevant job postings in Spain.'),
@@ -45,7 +45,7 @@ Based on the following resume:
 Your task is to:
 1. Identify up to 10 highly relevant job postings. The job location MUST be in Spain.
 2. Prioritize job boards like InfoJobs (infojobs.net) and LinkedIn Jobs (linkedin.com/jobs).
-3. Provide ONLY direct, publicly accessible URLs to the INDIVIDUAL job posting pages.
+3. Provide ONLY direct, publicly accessible URLs to the INDIVIDUAL job posting pages. These must be valid URL strings.
 4. Ensure the links are active and lead to a specific job description, NOT a general search results page, a company's main career portal, or a login page.
 5. You MUST return between 1 and 10 valid URLs.
 
