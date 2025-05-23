@@ -9,7 +9,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { getDocument, type TextItem } from 'pdfjs-dist/legacy/build/pdf.js';
+// Attempt to import the .mjs version for better ESM compatibility
+import { getDocument, type TextItem } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 
 export const fetchTextFromUrlTool = ai.defineTool(
@@ -92,6 +93,7 @@ export const extractTextFromPdfTool = ai.defineTool(
       const pdfBuffer = Buffer.from(base64Data, 'base64');
       const typedArray = new Uint8Array(pdfBuffer); // pdfjs-dist expects Uint8Array
 
+      // Using pdfjs-dist directly
       const pdfDoc = await getDocument({ data: typedArray }).promise;
       let fullText = '';
       for (let i = 1; i <= pdfDoc.numPages; i++) {
