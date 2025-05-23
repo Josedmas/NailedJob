@@ -91,46 +91,79 @@ export const extractTextFromFileTool = ai.defineTool(
     outputSchema: ExtractTextFromFileOutputSchema,
   },
   async ({ fileDataUri, mimeType }) => { // mimeType will always be 'application/pdf' here due to schema
+    console.log('[extractTextFromFileTool] Started processing PDF.');
     try {
       const base64Data = fileDataUri.split(',')[1];
-      if (base64Data === undefined || base64Data === null) {
-        throw new Error('Invalid data URI format for PDF: missing base64 data.');
+      if (!base64Data) {
+        console.error('[extractTextFromFileTool] Invalid data URI format for PDF - missing base64 data.');
+        return { extractedText: 'Error extracting text: Invalid data URI format for PDF - missing base64 data.' };
       }
       const buffer = Buffer.from(base64Data, 'base64');
       
+      // Convert Buffer to Uint8Array
       const bufferArray = new Uint8Array(buffer);
+      console.log('[extractTextFromFileTool] PDF buffer created. Calling getDocument...');
       
       // Pass disableWorker: true to prevent worker-related issues in SSR
-      // This is crucial for server-side usage and should be respected if GlobalWorkerOptions.isWorkerDisabled is set.
       const loadingTask = pdfjsLib.getDocument({ data: bufferArray, disableWorker: true });
       const pdf = await loadingTask.promise as PDFDocumentProxy;
+      console.log('[extractTextFromFileTool] PDF document loaded. Num pages:', pdf.numPages);
       
-      if (!pdf || typeof pdf.numPages !== 'number') {
-        throw new Error('Failed to load PDF document or document structure is invalid.');
+      if (!pdf || typeof pdf.numPages !== 'number' || pdf.numPages === 0) {
+        console.error('[extractTextFromFileTool] Failed to load PDF or PDF has no pages. PDF object:', pdf);
+        return { extractedText: 'Error extracting text: Failed to load PDF document, PDF structure is invalid, or PDF has no pages.' };
       }
 
-      let fullText = "";
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        if (!page) { 
-            console.warn(`Could not get page ${i} from PDF.`);
-            continue;
-        }
-        const textContent = await page.getTextContent();
-        if (!textContent || !Array.isArray(textContent.items)) { 
-            console.warn(`Could not get textContent or items for page ${i}.`);
-            continue;
-        }
-        const pageText = textContent.items
-          .filter((item): item is TextItem => typeof (item as TextItem).str === 'string')
-          .map((item: TextItem) => item.str)
-          .join(" ");
-        fullText += pageText + "\n";
+      // Simplify: Process only the first page for stability testing.
+      const pageNumber = 1;
+      console.log(`[extractTextFromFileTool] Getting page ${pageNumber}...`);
+      const page = await pdf.getPage(pageNumber);
+      
+      if (!page) { 
+          console.warn(`[extractTextFromFileTool] Could not get page ${pageNumber} from PDF.`);
+          return { extractedText: `Error extracting text: Could not retrieve page ${pageNumber} from PDF.`};
       }
-      return { extractedText: fullText.trim() };
-    } catch (error: any) {
-      console.error('Error extracting text from PDF file tool (using pdfjs-dist):', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(`[extractTextFromFileTool] Page ${pageNumber} retrieved. Getting textContent...`);
+      const textContent = await page.getTextContent();
+
+      if (!textContent || !Array.isArray(textContent.items)) { 
+            console.warn(`[extractTextFromFileTool] Could not get textContent or items for page ${pageNumber}.`);
+            return { extractedText: `Error extracting text: Could not get text content for page ${pageNumber}.`};
+      }
+      console.log(`[extractTextFromFileTool] TextContent for page ${pageNumber} retrieved. Joining items...`);
+      const pageText = textContent.items
+        .filter((item): item is TextItem => typeof (item as TextItem).str === 'string')
+        .map((item: TextItem) => item.str)
+        .join(" ");
+      
+      console.log('[extractTextFromFileTool] Successfully extracted text from first page.');
+      return { extractedText: pageText.trim() };
+
+    } catch (error: unknown) { // Catch unknown for broader error handling
+      console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing:', error);
+      let errorMessage = "An unexpected error occurred during PDF processing.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        // Attempt to serialize non-Error objects if possible, for more debug info
+        try {
+          errorMessage = JSON.stringify(error);
+        } catch (e) {
+          // Fallback if serialization fails
+          errorMessage = "An unidentifiable error occurred and could not be serialized.";
+        }
+      }
+      // Log the full error object for more details if possible
+      if (typeof error === 'object' && error !== null) {
+        // Use Object.getOwnPropertyNames to get non-enumerable properties too
+        const errorDetails = Object.getOwnPropertyNames(error).reduce((acc, key) => {
+          acc[key] = (error as any)[key];
+          return acc;
+        }, {} as Record<string, any>);
+        console.error('[extractTextFromFileTool] Full error details:', errorDetails);
+      }
       return { extractedText: `Error extracting text: ${errorMessage}` };
     }
   }
