@@ -105,7 +105,7 @@ export const extractTextFromFileTool = ai.defineTool(
         return { extractedText: errorMsg };
       }
       const base64Data = parts[1];
-      console.log(`[extractTextFromFileTool] Base64 data length: ${base64Data.length}`); // DIAGNOSTIC LOG ADDED
+      console.log(`[extractTextFromFileTool] Base64 data length: ${base64Data.length}`);
 
       const buffer = Buffer.from(base64Data, 'base64');
       const bufferArray = new Uint8Array(buffer);
@@ -115,7 +115,7 @@ export const extractTextFromFileTool = ai.defineTool(
       const pdf = await pdfjsLib.getDocument({ data: bufferArray, disableWorker: true }).promise as PDFDocumentProxy;
 
       if (!pdf || typeof pdf.numPages !== 'number') {
-        const errorMsg = 'Error extracting text: Failed to load PDF document or invalid PDF structure.';
+        const errorMsg = 'Error extracting text: Failed to load PDF document or invalid PDF structure. The PDF might be corrupted or not a valid PDF file.';
         console.error('[extractTextFromFileTool] Failed to load PDF document. PDF object:', pdf);
         return { extractedText: errorMsg };
       }
@@ -168,3 +168,4 @@ export const extractTextFromFileTool = ai.defineTool(
     }
   }
 );
+
