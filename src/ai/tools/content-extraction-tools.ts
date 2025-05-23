@@ -75,9 +75,7 @@ export const fetchTextFromUrlTool = ai.defineTool(
 
 export const ExtractTextFromFileInputSchema = z.object({
   fileDataUri: z.string().describe("The PDF file content as a data URI. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
-  mimeType: z.string().refine(val => val === 'application/pdf', {
-    message: 'Only PDF files (application/pdf) are supported.'
-  }).describe('The MIME type of the file (must be "application/pdf").'),
+  mimeType: z.literal('application/pdf').describe('The MIME type of the file (must be "application/pdf").'),
 });
 export type ExtractTextFromFileInput = z.infer<typeof ExtractTextFromFileInputSchema>;
 
@@ -93,11 +91,9 @@ export const extractTextFromFileTool = ai.defineTool(
     inputSchema: ExtractTextFromFileInputSchema,
     outputSchema: ExtractTextFromFileOutputSchema,
   },
-  async ({ fileDataUri, mimeType }) => {
+  async ({ fileDataUri, mimeType }) => { // mimeType will always be 'application/pdf' here due to schema
     try {
-      if (mimeType !== 'application/pdf') {
-        throw new Error(`Unsupported file type: ${mimeType}. Only PDF files are supported.`);
-      }
+      // No need to check mimeType === 'application/pdf' again, Zod literal schema handles it.
 
       const base64Data = fileDataUri.split(',')[1];
       if (!base64Data) {
@@ -106,6 +102,7 @@ export const extractTextFromFileTool = ai.defineTool(
       const buffer = Buffer.from(base64Data, 'base64');
       
       const bufferArray = new Uint8Array(buffer);
+      // Pass disableWorker: true to prevent worker-related issues in SSR
       const loadingTask = pdfjsLib.getDocument({ data: bufferArray, disableWorker: true });
       const pdf = await loadingTask.promise as PDFDocumentProxy;
       
@@ -126,3 +123,4 @@ export const extractTextFromFileTool = ai.defineTool(
     }
   }
 );
+
