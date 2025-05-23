@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { AutomatedJobSearchOutput } from '@/ai/flows/automated-job-search';
@@ -5,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { ExternalLink, Briefcase, ListChecks } from 'lucide-react';
 import LoadingIndicator from '@/components/loading-indicator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useLanguage } from '@/contexts/language-context';
 
 interface JobSearchStepProps {
   result: AutomatedJobSearchOutput | null;
@@ -12,21 +14,23 @@ interface JobSearchStepProps {
 }
 
 export function JobSearchStep({ result, loading }: JobSearchStepProps) {
+  const { t } = useLanguage();
+
   if (loading) {
-    return <LoadingIndicator message="Searching for relevant job opportunities..." />;
+    return <LoadingIndicator message={t('searchingJobsMessage')} />;
   }
 
   if (!result || !result.jobPostings || result.jobPostings.length === 0) {
     return (
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="flex items-center"><Briefcase className="mr-2 h-6 w-6 text-primary" />Job Opportunities</CardTitle>
+          <CardTitle className="flex items-center"><Briefcase className="mr-2 h-6 w-6 text-primary" />{t('jobOpportunitiesTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
             {result && result.jobPostings && result.jobPostings.length === 0 
-             ? "No job postings found based on your new resume. You might want to refine your resume or try again later." 
-             : "Job listings based on your new resume will appear here."}
+             ? t('noJobPostingsFound')
+             : t('jobListingsPlaceholder')}
           </p>
         </CardContent>
       </Card>
@@ -38,8 +42,8 @@ export function JobSearchStep({ result, loading }: JobSearchStepProps) {
   return (
     <Card className="shadow-lg">
       <CardHeader>
-        <CardTitle className="flex items-center"><ListChecks className="mr-2 h-6 w-6 text-primary" />Curated Job Opportunities</CardTitle>
-        <CardDescription>Here are 10 job postings in Spain that match your AI-tailored resume.</CardDescription>
+        <CardTitle className="flex items-center"><ListChecks className="mr-2 h-6 w-6 text-primary" />{t('curatedJobOpportunitiesTitle')}</CardTitle>
+        <CardDescription>{t('curatedJobOpportunitiesDescription')}</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-96">
@@ -54,7 +58,7 @@ export function JobSearchStep({ result, loading }: JobSearchStepProps) {
                 >
                   <span className="truncate pr-2">
                     <Briefcase className="inline h-4 w-4 mr-2 align-text-bottom" /> 
-                    Job Posting {index + 1}: {link.length > 60 ? `${link.substring(0, 60)}...` : link}
+                    {t('jobPostingLinkText', { index: index + 1, link: link.length > 60 ? `${link.substring(0, 60)}...` : link })}
                   </span>
                   <ExternalLink className="h-4 w-4 flex-shrink-0" />
                 </a>
@@ -63,7 +67,7 @@ export function JobSearchStep({ result, loading }: JobSearchStepProps) {
           </ul>
         </ScrollArea>
          <p className="text-sm text-center text-muted-foreground mt-6">
-          Good luck with your applications! Click "Start Over" to process another job offer.
+          {t('goodLuckPrompt')}
         </p>
       </CardContent>
     </Card>
