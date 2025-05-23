@@ -10,12 +10,27 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { fetchTextFromUrlTool, extractTextFromPdfTool } from '@/ai/tools/content-extraction-tools';
+
 
 const AIResumeBuilderInputSchema = z.object({
   jobDescription: z
     .string()
-    .describe('The job description for which the resume is being tailored.'),
-  resume: z.string().describe('The candidate\'s resume in text format.'),
+    .optional()
+    .describe('The job description for which the resume is being tailored. If not provided, jobOfferUrl will be used.'),
+  jobOfferUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe('URL of the job offer. Used if jobDescription text is not provided.'),
+  resume: z
+    .string()
+    .optional()
+    .describe("The candidate's resume in text format. If not provided, resumePdfDataUri will be used."),
+  resumePdfDataUri: z
+    .string()
+    .optional()
+    .describe("The resume as a PDF data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
   profilePhotoDataUri: z
     .string()
     .optional()
@@ -26,7 +41,14 @@ const AIResumeBuilderInputSchema = z.object({
     .string()
     .optional()
     .describe('The language of the job description and resume.'),
+}).refine(data => data.jobDescription || data.jobOfferUrl, {
+  message: "Either jobDescription text or jobOfferUrl must be provided.",
+  path: ["jobDescription"], 
+}).refine(data => data.resume || data.resumePdfDataUri, {
+  message: "Either resume text or resumePdfDataUri must be provided.",
+  path: ["resume"],
 });
+
 export type AIResumeBuilderInput = z.infer<typeof AIResumeBuilderInputSchema>;
 
 const AIResumeBuilderOutputSchema = z.object({
@@ -41,9 +63,18 @@ export async function aiResumeBuilder(input: AIResumeBuilderInput): Promise<AIRe
   return aiResumeBuilderFlow(input);
 }
 
+// Internal schema for the prompt, after processing URL/PDF
+const ProcessedAIResumeBuilderInputSchema = z.object({
+  jobDescriptionText: z.string().describe('The job description text.'),
+  resumeText: z.string().describe('The resume text.'),
+  profilePhotoDataUri: z.string().optional(),
+  language: z.string().optional(),
+});
+
+
 const prompt = ai.definePrompt({
   name: 'aiResumeBuilderPrompt',
-  input: {schema: AIResumeBuilderInputSchema},
+  input: {schema: ProcessedAIResumeBuilderInputSchema},
   output: {schema: AIResumeBuilderOutputSchema},
   prompt: `You are an expert resume writer, specializing in creating Harvard-style resumes tailored to specific job descriptions.
 
@@ -68,8 +99,8 @@ const prompt = ai.definePrompt({
   6. Languages:
   Level of Proficiency: Indicate the languages you master and your level of proficiency (e.g., native, advanced, intermediate, basic).
 
-  Job Description: {{{jobDescription}}}
-  Resume: {{{resume}}}
+  Job Description: {{{jobDescriptionText}}}
+  Resume: {{{resumeText}}}
   Profile Photo: {{#if profilePhotoDataUri}}{{media url=profilePhotoDataUri}}{{/if}}
   Language: {{{language}}}
   `,
@@ -80,9 +111,41 @@ const aiResumeBuilderFlow = ai.defineFlow(
     name: 'aiResumeBuilderFlow',
     inputSchema: AIResumeBuilderInputSchema,
     outputSchema: AIResumeBuilderOutputSchema,
+    tools: [fetchTextFromUrlTool, extractTextFromPdfTool],
   },
-  async input => {
-    const {output} = await prompt(input);
+  async (input) => {
+    let jobDescriptionText = input.jobDescription;
+    let resumeText = input.resume;
+
+    if (!jobDescriptionText && input.jobOfferUrl) {
+      console.log(`Fetching job description from URL: ${input.jobOfferUrl}`);
+      const { output } = await fetchTextFromUrlTool({ url: input.jobOfferUrl });
+      if (!output?.text) throw new Error('Could not extract text from job offer URL.');
+      jobDescriptionText = output.text;
+    }
+
+    if (!resumeText && input.resumePdfDataUri) {
+      console.log('Extracting resume text from PDF data URI.');
+      const { output } = await extractTextFromPdfTool({ pdfDataUri: input.resumePdfDataUri });
+      if (!output?.text) throw new Error('Could not extract text from PDF resume.');
+      resumeText = output.text;
+    }
+
+    if (!jobDescriptionText) {
+        throw new Error("Job description text is missing after attempting to process inputs.");
+    }
+    if (!resumeText) {
+        throw new Error("Resume text is missing after attempting to process inputs.");
+    }
+
+    const processedInput: z.infer<typeof ProcessedAIResumeBuilderInputSchema> = {
+        jobDescriptionText,
+        resumeText,
+        profilePhotoDataUri: input.profilePhotoDataUri,
+        language: input.language
+    };
+
+    const {output} = await prompt(processedInput);
     return output!;
   }
 );

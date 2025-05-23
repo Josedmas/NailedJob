@@ -23,6 +23,8 @@ export interface CareerCraftFormState {
   jobOfferText: string;
   jobOfferUrl: string;
   resumeText: string;
+  resumePdfName: string;
+  resumePdfDataUri: string;
   profilePhotoName: string;
   profilePhotoDataUri: string;
   language: string; // This is language for resume generation, distinct from app UI language
@@ -32,6 +34,8 @@ const initialFormState: CareerCraftFormState = {
   jobOfferText: '',
   jobOfferUrl: '',
   resumeText: '',
+  resumePdfName: '',
+  resumePdfDataUri: '',
   profilePhotoName: '',
   profilePhotoDataUri: '',
   language: 'English', // Default language for resume content
@@ -47,7 +51,6 @@ export default function CareerCraftWizard() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  // Update formState.language if appLanguage changes and it's one of the supported resume languages
   useEffect(() => {
     const resumeLang = appLanguage === 'es' ? 'Spanish' : 'English';
     if (formState.language !== resumeLang) {
@@ -65,17 +68,23 @@ export default function CareerCraftWizard() {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (e.target.name === 'profilePhoto') {
-        const reader = new FileReader();
-        reader.onloadend = () => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (e.target.name === 'profilePhoto') {
           setFormState(prev => ({
             ...prev,
             profilePhotoDataUri: reader.result as string,
             profilePhotoName: file.name,
           }));
-        };
-        reader.readAsDataURL(file);
-      }
+        } else if (e.target.name === 'resumePdf') {
+           setFormState(prev => ({
+            ...prev,
+            resumePdfDataUri: reader.result as string,
+            resumePdfName: file.name,
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -96,8 +105,8 @@ export default function CareerCraftWizard() {
       console.error("AI call failed:", error);
       toast({
         variant: "destructive",
-        title: "AI Error",
-        description: error instanceof Error ? error.message : "An unexpected error occurred with the AI service.",
+        title: t('aiErrorTitle') || "AI Error",
+        description: (error instanceof Error ? error.message : t('aiUnexpectedErrorDescription') || "An unexpected error occurred with the AI service."),
       });
     } finally {
       setLoading(false);
@@ -106,12 +115,21 @@ export default function CareerCraftWizard() {
 
   const handleNextStep = async () => {
     if (currentStep === 1) { 
-      if (!formState.jobOfferText || !formState.resumeText) {
-        toast({ variant: "destructive", title: "Missing Information", description: "Please provide both job offer and resume text." });
+      if ((!formState.jobOfferText && !formState.jobOfferUrl) || (!formState.resumeText && !formState.resumePdfDataUri)) {
+        toast({ 
+            variant: "destructive", 
+            title: t('missingInfoTitle') || "Missing Information", 
+            description: t('missingInfoDescription') || "Please provide job offer (text or URL) and resume (text or PDF)." 
+        });
         return;
       }
       await callAI(async () => {
-        const input: CompatibilityInput = { jobDescription: formState.jobOfferText, resume: formState.resumeText };
+        const input: CompatibilityInput = { 
+            jobDescription: formState.jobOfferText || undefined, 
+            jobOfferUrl: formState.jobOfferUrl || undefined,
+            resume: formState.resumeText || undefined,
+            resumePdfDataUri: formState.resumePdfDataUri || undefined,
+        };
         const result = await analyzeCompatibility(input);
         setCompatibilityResult(result);
         setCurrentStep(2);
@@ -119,10 +137,12 @@ export default function CareerCraftWizard() {
     } else if (currentStep === 2) { 
       await callAI(async () => {
         const input: AIResumeBuilderInput = {
-          jobDescription: formState.jobOfferText,
-          resume: formState.resumeText,
+          jobDescription: formState.jobOfferText || undefined,
+          jobOfferUrl: formState.jobOfferUrl || undefined,
+          resume: formState.resumeText || undefined,
+          resumePdfDataUri: formState.resumePdfDataUri || undefined,
           profilePhotoDataUri: formState.profilePhotoDataUri || undefined,
-          language: formState.language, // Use formState.language for resume content
+          language: formState.language,
         };
         const result = await aiResumeBuilder(input);
         setTailoredResumeResult(result);
@@ -130,7 +150,11 @@ export default function CareerCraftWizard() {
       });
     } else if (currentStep === 3) { 
       if (!tailoredResumeResult?.tailoredResume) {
-         toast({ variant: "destructive", title: "Missing Resume", description: "No tailored resume available to search for jobs." });
+         toast({ 
+            variant: "destructive", 
+            title: t('missingResumeTitle') || "Missing Resume", 
+            description: t('missingResumeDescription') || "No tailored resume available to search for jobs." 
+        });
         return;
       }
       await callAI(async () => {

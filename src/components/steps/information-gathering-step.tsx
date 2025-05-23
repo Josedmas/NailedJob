@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Image from 'next/image';
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, FileText, Link2 } from 'lucide-react';
 import { useLanguage } from '@/contexts/language-context';
 
 interface InformationGatheringStepProps {
@@ -26,24 +26,31 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
       <Card>
         <CardHeader>
           <CardTitle>{t('jobOfferDetailsTitle')}</CardTitle>
-          <CardDescription>{t('jobOfferDescription')}</CardDescription>
+          <CardDescription>{t('jobOfferDescriptionEnhanced')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="jobOfferText">{t('jobOfferTextLabel')}</Label>
+            <Label htmlFor="jobOfferText">
+                <FileText className="inline-block mr-1 h-4 w-4 align-text-bottom" /> 
+                {t('jobOfferTextLabel')}
+            </Label>
             <Textarea
               id="jobOfferText"
               name="jobOfferText"
               value={formState.jobOfferText}
               onChange={onInputChange}
               placeholder={t('jobOfferTextPlaceholder')}
-              rows={8}
+              rows={6}
               className="mt-1"
-              required
             />
+             <p className="text-sm text-muted-foreground mt-1">{t('jobOfferTextOrUrl')}</p>
           </div>
+          <div className="text-center my-2 text-sm text-muted-foreground">{t('orSeparator')}</div>
           <div>
-            <Label htmlFor="jobOfferUrl">{t('jobOfferUrlLabel')}</Label>
+            <Label htmlFor="jobOfferUrl">
+                <Link2 className="inline-block mr-1 h-4 w-4 align-text-bottom" /> 
+                {t('jobOfferUrlLabel')}
+            </Label>
             <Input
               id="jobOfferUrl"
               name="jobOfferUrl"
@@ -60,36 +67,46 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
       <Card>
         <CardHeader>
           <CardTitle>{t('candidateInfoTitle')}</CardTitle>
-          <CardDescription>{t('candidateInfoDescription')}</CardDescription>
+          <CardDescription>{t('candidateInfoDescriptionEnhanced')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="resumeText">{t('resumeTextLabel')}</Label>
+            <Label htmlFor="resumeText">
+                <FileText className="inline-block mr-1 h-4 w-4 align-text-bottom" /> 
+                {t('resumeTextLabel')}
+            </Label>
             <Textarea
               id="resumeText"
               name="resumeText"
               value={formState.resumeText}
               onChange={onInputChange}
               placeholder={t('resumeTextPlaceholder')}
-              rows={10}
+              rows={8}
               className="mt-1"
-              required
             />
-            <p className="text-sm text-muted-foreground mt-1">
-              {t('resumePdfHint')}
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">{t('resumeTextOrPdf')}</p>
           </div>
+          <div className="text-center my-2 text-sm text-muted-foreground">{t('orSeparator')}</div>
           <div>
-            <Label htmlFor="resumePdf">{t('resumePdfLabel')}</Label>
+            <Label htmlFor="resumePdf">
+                <UploadCloud className="inline-block mr-1 h-4 w-4 align-text-bottom" />
+                {t('resumePdfLabel')}
+            </Label>
             <Input
               id="resumePdf"
               name="resumePdf"
               type="file"
               accept=".pdf"
-              onChange={onFileChange} // Note: PDF content is not directly used by AI in this version
+              onChange={onFileChange}
               className="mt-1"
             />
+            {formState.resumePdfName && (
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                    {t('fileUploadedLabel')}: {formState.resumePdfName}
+                </p>
+            )}
           </div>
+          <hr className="my-4"/>
           <div>
             <Label htmlFor="profilePhoto">{t('profilePhotoLabel')}</Label>
             <Input
