@@ -61,11 +61,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     tailoredResumeTitle: "Tailored Resume",
     aiGeneratedResumePlaceholder: "Your AI-generated resume will appear here.",
     aiCraftedResumeTitle: "Your AI-Crafted Resume",
-    aiCraftedResumeDescription: "This resume has been tailored for the job offer using the Harvard style.",
-    tailoredResumeContentTitle: "Tailored Resume Content:",
+    aiCraftedResumeDescription: "This resume has been tailored for the job offer. Review the content and download it.",
+    tailoredResumeContentTitle: "Tailored Resume Content (Raw Text):",
     downloadAsTextButton: "Download as Text",
     downloadAsPdfButton: "Download as PDF",
-    pdfDownloadNote: "The PDF version is a direct text conversion. For advanced formatting, consider pasting into a word processor.",
+    pdfDownloadNote: "The PDF version attempts to match the modern resume style.",
     explanationOfModificationsTitle: "Explanation of Modifications:",
     happyWithResumePrompt: "Happy with your new resume? Click \"Find Jobs\" to discover opportunities matching this CV.",
     // CompatibilityAnalysisStep
@@ -97,6 +97,21 @@ export const translations: Record<Locale, Record<string, string>> = {
     // Loading Indicator
     loadingMessageDefault: "Processing...",
     loadingAiMagic: "Please wait, AI is working its magic!",
+    // Resume Section Titles (for PDF parsing and generation)
+    sectionTitle_ContactInformation: "Contact Information",
+    sectionTitle_Profile: "Profile",
+    sectionTitle_WorkExperience: "Work Experience",
+    sectionTitle_AcademicTraining: "Academic Training",
+    sectionTitle_Skills: "Skills",
+    sectionTitle_Languages: "Languages",
+    sectionTitle_Projects: "Projects",
+    sectionTitle_PersonalDetails_es: "Detalles personales", // Explicit Spanish version for parsing
+    sectionTitle_Profile_es: "Perfil",
+    sectionTitle_WorkExperience_es: "Experiencia Laboral",
+    sectionTitle_AcademicTraining_es: "Formación Académica",
+    sectionTitle_Skills_es: "Habilidades",
+    sectionTitle_Languages_es: "Idiomas",
+    sectionTitle_Projects_es: "Proyectos",
   },
   es: {
     // AppHeader
@@ -156,11 +171,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     tailoredResumeTitle: "Currículum Personalizado",
     aiGeneratedResumePlaceholder: "Tu currículum generado por IA aparecerá aquí.",
     aiCraftedResumeTitle: "Tu Currículum Creado por IA",
-    aiCraftedResumeDescription: "Este currículum ha sido adaptado para la oferta de empleo usando el estilo Harvard.",
-    tailoredResumeContentTitle: "Contenido del Currículum Personalizado:",
+    aiCraftedResumeDescription: "Este currículum ha sido adaptado para la oferta de empleo. Revisa el contenido y descárgalo.",
+    tailoredResumeContentTitle: "Contenido del Currículum Personalizado (Texto sin formato):",
     downloadAsTextButton: "Descargar como Texto",
     downloadAsPdfButton: "Descargar como PDF",
-    pdfDownloadNote: "La versión PDF es una conversión directa de texto. Para formato avanzado, considera pegar en un procesador de textos.",
+    pdfDownloadNote: "La versión PDF intenta asemejarse al estilo de currículum moderno.",
     explanationOfModificationsTitle: "Explicación de las Modificaciones:",
     happyWithResumePrompt: "¿Contento con tu nuevo currículum? Haz clic en \"Buscar Empleos\" para descubrir oportunidades que coincidan con este CV.",
     // CompatibilityAnalysisStep
@@ -192,6 +207,21 @@ export const translations: Record<Locale, Record<string, string>> = {
     // Loading Indicator
     loadingMessageDefault: "Procesando...",
     loadingAiMagic: "Por favor espera, ¡la IA está haciendo su magia!",
+     // Resume Section Titles (for PDF parsing and generation)
+    sectionTitle_ContactInformation: "Detalles personales",
+    sectionTitle_Profile: "Perfil",
+    sectionTitle_WorkExperience: "Experiencia Laboral",
+    sectionTitle_AcademicTraining: "Formación Académica",
+    sectionTitle_Skills: "Habilidades",
+    sectionTitle_Languages: "Idiomas",
+    sectionTitle_Projects: "Proyectos",
+    sectionTitle_PersonalDetails_es: "Detalles personales",
+    sectionTitle_Profile_es: "Perfil",
+    sectionTitle_WorkExperience_es: "Experiencia Laboral",
+    sectionTitle_AcademicTraining_es: "Formación Académica",
+    sectionTitle_Skills_es: "Habilidades",
+    sectionTitle_Languages_es: "Idiomas",
+    sectionTitle_Projects_es: "Proyectos",
   },
 };
 

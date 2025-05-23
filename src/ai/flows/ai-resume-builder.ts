@@ -81,20 +81,21 @@ const prompt = ai.definePrompt({
   Your primary task is to generate a new Harvard-style resume based on the provided job description and existing resume. This new resume must highlight the candidate's strengths and qualifications most relevant to the job.
   Additionally, you must include an explanation of the modifications made to the resume, focusing on why each change was made to better align the resume with the job description.
 
-  The resume should include the following sections:
-  1. Contact Information: Full name, address, phone number, email address, and links to professional profiles on networks like LinkedIn.
-  2. Profile (Optional): A brief summary of your experience, skills, and professional goals. It is useful to highlight your strengths and how they align with the position you are applying for.
-  3. Work Experience: Reverse Chronological Order: Start with your most recent job and then list the previous ones, including the company name, position, start and end dates, and a brief description of your responsibilities and achievements. Relevant Details: Mention concrete achievements and measurable results, using action verbs to give dynamism to the descriptions.
-  4. Academic Training: Reverse Chronological Order: Start with the highest degree (e.g., Master's) and then the previous degrees (e.g., Bachelor's). Detailed Information: Include the name of the institution, graduation date, and specialty.
-  5. Skills: List of Skills: List your technical and soft skills, such as language proficiency, software knowledge, communication skills, leadership, etc.
-  6. Languages: Level of Proficiency: Indicate the languages you master and your level of proficiency (e.g., native, advanced, intermediate, basic).
+  The resume should include the following sections, using the exact section titles as specified below for the given language:
+  1. Contact Information (English) / Detalles personales (Spanish): Full name, address, phone number, email address, and links to professional profiles on networks like LinkedIn. The full name should be the very first line of the resume.
+  2. Profile (English) / Perfil (Spanish) (Optional): A brief summary of your experience, skills, and professional goals. It is useful to highlight your strengths and how they align with the position you are applying for.
+  3. Work Experience (English) / Experiencia Laboral (Spanish): Reverse Chronological Order: Start with your most recent job and then list the previous ones, including the company name, position, start and end dates, and a brief description of your responsibilities and achievements. Relevant Details: Mention concrete achievements and measurable results, using action verbs to give dynamism to the descriptions.
+  4. Academic Training (English) / Formación Académica (Spanish): Reverse Chronological Order: Start with the highest degree (e.g., Master's) and then the previous degrees (e.g., Bachelor's). Detailed Information: Include the name of the institution, graduation date, and specialty.
+  5. Skills (English) / Habilidades (Spanish): List of Skills: List your technical and soft skills, such as language proficiency, software knowledge, communication skills, leadership, etc.
+  6. Languages (English) / Idiomas (Spanish): Level of Proficiency: Indicate the languages you master and your level of proficiency (e.g., native, advanced, intermediate, basic).
+  7. Projects (English) / Proyectos (Spanish) (Optional): Describe relevant projects you have worked on, highlighting your role and achievements.
 
   Job Description: {{{jobDescriptionText}}}
   Resume: {{{resumeText}}}
-  {{#if profilePhotoDataUri}}Profile Photo: {{media url=profilePhotoDataUri}}{{/if}}
+  {{#if profilePhotoDataUri}}Profile Photo: {{media url=profilePhotoDataUri}} {{!-- This is for AI context only, photo is handled separately for PDF --}}{{/if}}
   Language: {{{language}}}
 
-  **Important Instruction for Language:** You MUST generate the new Harvard-style resume AND the explanation of modifications strictly in the language specified in the 'Language' field above. For example, if 'Language' is 'Spanish', all output related to the resume and its explanation must be in Spanish. Do not default to English if another language is specified.
+  **Important Instruction for Language:** You MUST generate the new Harvard-style resume AND the explanation of modifications strictly in the language specified in the 'Language' field above. For example, if 'Language' is 'Spanish', all output related to the resume and its explanation must be in Spanish, using the Spanish section titles provided. Do not default to English if another language is specified. Ensure each section starts with its designated title.
   `,
 });
 
@@ -133,8 +134,8 @@ const aiResumeBuilderFlow = ai.defineFlow(
     const processedInput: z.infer<typeof ProcessedAIResumeBuilderInputSchema> = {
         jobDescriptionText,
         resumeText,
-        profilePhotoDataUri: input.profilePhotoDataUri,
-        language: input.language // input.language is now guaranteed to be a string
+        profilePhotoDataUri: input.profilePhotoDataUri, // Pass photo for context, not for direct embedding by AI
+        language: input.language 
     };
 
     const {output} = await prompt(processedInput);

@@ -9,16 +9,17 @@ import LoadingIndicator from '@/components/loading-indicator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { jsPDF } from 'jspdf';
 import { useLanguage } from '@/contexts/language-context';
-
+import type { Locale } from '@/lib/translations';
 
 interface ResumeBuilderStepProps {
   result: AIResumeBuilderOutput | null;
   loading: boolean;
   profilePhotoDataUri?: string;
+  resumeLanguage: string; // Expect 'English', 'Spanish', etc.
 }
 
-export function ResumeBuilderStep({ result, loading, profilePhotoDataUri }: ResumeBuilderStepProps) {
-  const { t } = useLanguage();
+export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resumeLanguage }: ResumeBuilderStepProps) {
+  const { t, language: uiLanguage } = useLanguage();
 
   if (loading) {
     return <LoadingIndicator message={t('buildingResumeMessage') || "Building your tailored resume..."} />;
@@ -52,68 +53,150 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri }: Resu
   const handleDownloadPdf = () => {
     if (!tailoredResume) return;
 
-    const doc = new jsPDF({
-      orientation: 'p',
-      unit: 'mm',
-      format: 'a4'
-    });
-
-    doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(11);
-
-    const pageHeight = doc.internal.pageSize.getHeight();
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 15; // mm
-    const maxLineWidth = pageWidth - margin * 2;
-    const lineHeight = 6; // Approx 6mm for font size 11
-
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const leftColumnWidth = 50;
+    const rightColumnX = margin + leftColumnWidth + 5;
+    const contentWidth = pageWidth - rightColumnX - margin;
     let yPosition = margin;
+    const lineHeight = 6;
+    const sectionSpacing = 8;
+    const itemSpacing = 3; // Spacing between items in a list (e.g. experience details)
 
-    // Add profile photo if available
+    // --- Default Font ---
+    doc.setFont('Helvetica', 'normal');
+
+    // --- Resume Header (Photo and Name) ---
+    const photoSize = 30; // mm
     if (profilePhotoDataUri) {
       try {
         const parts = profilePhotoDataUri.split(',');
         if (parts.length === 2) {
-            const mimeTypePart = parts[0].match(/:(.*?);/);
-            if (mimeTypePart && mimeTypePart[1]) {
-                const imageType = mimeTypePart[1].split('/')[1]?.toUpperCase(); // PNG, JPEG etc.
-                const base64Data = parts[1];
-                
-                if (imageType && (imageType === 'PNG' || imageType === 'JPEG' || imageType === 'JPG')) {
-                    const IMAGE_WIDTH_MM = 30;
-                    const IMAGE_HEIGHT_MM = 40; 
-                    const IMAGE_PADDING_BOTTOM_MM = 5;
-
-                    // Ensure image fits, if not, scale it down (simple example)
-                    // A more robust solution would calculate aspect ratio
-                    doc.addImage(base64Data, imageType, margin, margin, IMAGE_WIDTH_MM, IMAGE_HEIGHT_MM);
-                    yPosition = margin + IMAGE_HEIGHT_MM + IMAGE_PADDING_BOTTOM_MM;
-                } else {
-                    console.warn("Unsupported image type for PDF: ", imageType);
-                }
-            } else {
-                 console.warn("Could not parse image mime type from data URI for PDF.");
+          const mimeTypePart = parts[0].match(/:(.*?);/);
+          if (mimeTypePart && mimeTypePart[1]) {
+            const imageType = mimeTypePart[1].split('/')[1]?.toUpperCase();
+            if (imageType && (imageType === 'PNG' || imageType === 'JPEG' || imageType === 'JPG')) {
+              doc.addImage(profilePhotoDataUri, imageType, margin, yPosition, photoSize, photoSize);
             }
-        } else {
-            console.warn("Invalid data URI format for profile photo for PDF.");
+          }
         }
-      } catch (error) {
-        console.error("Error adding image to PDF:", error);
+      } catch (e) {
+        console.error("Error adding profile photo to PDF:", e);
       }
     }
 
+    // Extract name (assuming it's the first line of tailoredResume)
+    const resumeLines = tailoredResume.split('\n');
+    const candidateName = resumeLines.length > 0 ? resumeLines[0].trim() : "Candidate Name";
+    
+    doc.setFontSize(22);
+    doc.setFont('Helvetica', 'bold');
+    const nameX = profilePhotoDataUri ? margin + photoSize + 5 : margin;
+    doc.text(candidateName, nameX, yPosition + (photoSize / 2) + 3); // Vertically centerish name with photo
+    yPosition += photoSize + sectionSpacing;
 
-    const lines = doc.splitTextToSize(tailoredResume, maxLineWidth);
 
-    lines.forEach((line: string) => {
-      if (yPosition + lineHeight > pageHeight - margin) {
+    // --- Helper Function to Draw Sections ---
+    const drawSection = (titleKey: string, content: string, iconUnicode: string) => {
+      if (yPosition + lineHeight * 3 > pageHeight - margin) { // Check if enough space for title + a bit of content
         doc.addPage();
-        yPosition = margin; // Reset Y for new page (image is only on first page here)
+        yPosition = margin;
       }
-      doc.text(line, margin, yPosition);
-      yPosition += lineHeight;
-    });
 
+      // Section Title (Left Column)
+      doc.setFillColor(230, 230, 230); // Light gray background
+      doc.rect(margin, yPosition - lineHeight / 1.5, leftColumnWidth, lineHeight * 1.5, 'F');
+      
+      doc.setFontSize(12);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(50, 50, 50); // Dark gray text
+      const sectionTitleText = `${iconUnicode} ${t(titleKey, undefined, resumeLanguage.toLowerCase() as Locale)}`;
+      doc.text(sectionTitleText, margin + 3, yPosition + 2);
+      
+      // Section Content (Right Column)
+      doc.setFontSize(10);
+      doc.setFont('Helvetica', 'normal');
+      doc.setTextColor(0, 0, 0); // Black text
+      
+      const splitContent = doc.splitTextToSize(content, contentWidth);
+      let currentYForContent = yPosition;
+
+      splitContent.forEach((line: string) => {
+        if (currentYForContent + lineHeight > pageHeight - margin) {
+          doc.addPage();
+          currentYForContent = margin;
+           // Redraw title on new page if content spans multiple pages (optional, can be complex)
+        }
+        // Handle bullet points (simple check for now)
+        if (line.trim().startsWith('•') || line.trim().startsWith('-') || line.trim().startsWith('*')) {
+            doc.text("•", rightColumnX, currentYForContent);
+            doc.text(line.trim().substring(1).trim(), rightColumnX + 3, currentYForContent);
+        } else {
+            doc.text(line, rightColumnX, currentYForContent);
+        }
+        currentYForContent += lineHeight;
+      });
+      yPosition = Math.max(yPosition + lineHeight * 1.5 + itemSpacing, currentYForContent + itemSpacing); // Ensure yPosition moves past title or content
+      yPosition += sectionSpacing / 2; // Reduced spacing after content before next section
+    };
+
+    // --- Parsing and Drawing Sections ---
+    // Define section titles based on the resume's language for parsing
+    const currentLocale = resumeLanguage.toLowerCase() as Locale;
+    const sectionHeaders = {
+      personalDetails: t('sectionTitle_ContactInformation', undefined, currentLocale),
+      profile: t('sectionTitle_Profile', undefined, currentLocale),
+      workExperience: t('sectionTitle_WorkExperience', undefined, currentLocale),
+      academicTraining: t('sectionTitle_AcademicTraining', undefined, currentLocale),
+      skills: t('sectionTitle_Skills', undefined, currentLocale),
+      languages: t('sectionTitle_Languages', undefined, currentLocale),
+      projects: t('sectionTitle_Projects', undefined, currentLocale),
+    };
+    
+    // The AI output might start with the name, then section titles.
+    // We need to skip the name part for section parsing if it was already handled.
+    const resumeContentForParsing = resumeLines.slice(1).join('\n');
+
+    const extractContent = (text: string, startMarker: string, allMarkers: string[]): string => {
+        const startIndex = text.toLowerCase().indexOf(startMarker.toLowerCase());
+        if (startIndex === -1) return "";
+
+        let contentStart = text.indexOf('\n', startIndex);
+        if (contentStart === -1) contentStart = startIndex + startMarker.length; // if title is last thing
+        else contentStart +=1; // move past newline
+
+
+        let endIndex = text.length;
+        for (const marker of allMarkers) {
+            if (marker.toLowerCase() === startMarker.toLowerCase()) continue;
+            const nextMarkerIndex = text.toLowerCase().indexOf(marker.toLowerCase(), contentStart);
+            if (nextMarkerIndex !== -1 && nextMarkerIndex < endIndex) {
+                endIndex = nextMarkerIndex;
+            }
+        }
+        return text.substring(contentStart, endIndex).trim();
+    };
+    
+    const allSectionTitlesForParsing = Object.values(sectionHeaders);
+
+    const personalDetailsContent = extractContent(resumeContentForParsing, sectionHeaders.personalDetails, allSectionTitlesForParsing);
+    const profileContent = extractContent(resumeContentForParsing, sectionHeaders.profile, allSectionTitlesForParsing);
+    const experienceContent = extractContent(resumeContentForParsing, sectionHeaders.workExperience, allSectionTitlesForParsing);
+    const educationContent = extractContent(resumeContentForParsing, sectionHeaders.academicTraining, allSectionTitlesForParsing);
+    const skillsContent = extractContent(resumeContentForParsing, sectionHeaders.skills, allSectionTitlesForParsing);
+    const languagesContent = extractContent(resumeContentForParsing, sectionHeaders.languages, allSectionTitlesForParsing);
+    const projectsContent = extractContent(resumeContentForParsing, sectionHeaders.projects, allSectionTitlesForParsing);
+
+    if (personalDetailsContent) drawSection('sectionTitle_ContactInformation', personalDetailsContent, '👤');
+    if (profileContent) drawSection('sectionTitle_Profile', profileContent, '📝');
+    if (experienceContent) drawSection('sectionTitle_WorkExperience', experienceContent, '💼');
+    if (projectsContent) drawSection('sectionTitle_Projects', projectsContent, '💡');
+    if (educationContent) drawSection('sectionTitle_AcademicTraining', educationContent, '🎓');
+    if (skillsContent) drawSection('sectionTitle_Skills', skillsContent, '🛠️');
+    if (languagesContent) drawSection('sectionTitle_Languages', languagesContent, '🌐');
+    
     doc.save('tailored_resume.pdf');
   };
 
