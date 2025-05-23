@@ -10,7 +10,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 // pdf-parse is dynamically imported below to potentially avoid import-time issues.
-// import pdf from 'pdf-parse';
 
 // Define a variable to hold the dynamically imported pdf-parse module.
 // It's typed loosely here as type information from pdf-parse might not be directly available without @types/pdf-parse.
@@ -108,7 +107,13 @@ export const extractTextFromPdfTool = ai.defineTool(
 
       const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
       const pdfBuffer = Buffer.from(base64Data, 'base64');
-      const data = await parser(pdfBuffer); // Use the dynamically imported parser
+      
+      // Explicitly set pdf.js version option to potentially avoid internal errors
+      const pdfParseOptions = {
+        version: 'v2.0.550' // Supported versions: 'default', 'v1.10.100', 'v1.9.426', 'v2.0.550'
+      };
+
+      const data = await parser(pdfBuffer, pdfParseOptions); // Use the dynamically imported parser with options
       return {text: data.text};
     } catch (error) {
       console.error('Error parsing PDF content:', error);
@@ -118,3 +123,4 @@ export const extractTextFromPdfTool = ai.defineTool(
     }
   }
 );
+
