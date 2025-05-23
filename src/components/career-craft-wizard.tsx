@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent, useEffect } from 'react';
 import { InformationGatheringStep } from '@/components/steps/information-gathering-step';
 import { CompatibilityAnalysisStep } from '@/components/steps/compatibility-analysis-step';
 import { ResumeBuilderStep } from '@/components/steps/resume-builder-step';
@@ -16,13 +17,15 @@ import { aiResumeBuilder } from '@/ai/flows/ai-resume-builder';
 import type { AutomatedJobSearchInput, AutomatedJobSearchOutput } from '@/ai/flows/automated-job-search';
 import { automatedJobSearch } from '@/ai/flows/automated-job-search';
 
+import { useLanguage } from '@/contexts/language-context';
+
 export interface CareerCraftFormState {
   jobOfferText: string;
   jobOfferUrl: string;
   resumeText: string;
   profilePhotoName: string;
   profilePhotoDataUri: string;
-  language: string;
+  language: string; // This is language for resume generation, distinct from app UI language
 }
 
 const initialFormState: CareerCraftFormState = {
@@ -31,10 +34,11 @@ const initialFormState: CareerCraftFormState = {
   resumeText: '',
   profilePhotoName: '',
   profilePhotoDataUri: '',
-  language: 'English',
+  language: 'English', // Default language for resume content
 };
 
 export default function CareerCraftWizard() {
+  const { t, language: appLanguage } = useLanguage(); // appLanguage for UI, formState.language for resume
   const [currentStep, setCurrentStep] = useState(1);
   const [formState, setFormState] = useState<CareerCraftFormState>(initialFormState);
   const [compatibilityResult, setCompatibilityResult] = useState<CompatibilityOutput | null>(null);
@@ -42,6 +46,16 @@ export default function CareerCraftWizard() {
   const [jobListingsResult, setJobListingsResult] = useState<AutomatedJobSearchOutput | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  // Update formState.language if appLanguage changes and it's one of the supported resume languages
+  useEffect(() => {
+    const resumeLang = appLanguage === 'es' ? 'Spanish' : 'English';
+    if (formState.language !== resumeLang) {
+        setFormState(prev => ({ ...prev, language: resumeLang }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appLanguage]);
+
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -62,7 +76,6 @@ export default function CareerCraftWizard() {
         };
         reader.readAsDataURL(file);
       }
-      // PDF resume handling is simplified to text input for now
     }
   };
 
@@ -92,7 +105,7 @@ export default function CareerCraftWizard() {
   };
 
   const handleNextStep = async () => {
-    if (currentStep === 1) { // From Info Gathering to Compatibility Analysis
+    if (currentStep === 1) { 
       if (!formState.jobOfferText || !formState.resumeText) {
         toast({ variant: "destructive", title: "Missing Information", description: "Please provide both job offer and resume text." });
         return;
@@ -103,19 +116,19 @@ export default function CareerCraftWizard() {
         setCompatibilityResult(result);
         setCurrentStep(2);
       });
-    } else if (currentStep === 2) { // From Compatibility Analysis to Resume Builder
+    } else if (currentStep === 2) { 
       await callAI(async () => {
         const input: AIResumeBuilderInput = {
           jobDescription: formState.jobOfferText,
           resume: formState.resumeText,
           profilePhotoDataUri: formState.profilePhotoDataUri || undefined,
-          language: formState.language,
+          language: formState.language, // Use formState.language for resume content
         };
         const result = await aiResumeBuilder(input);
         setTailoredResumeResult(result);
         setCurrentStep(3);
       });
-    } else if (currentStep === 3) { // From Resume Builder to Job Search
+    } else if (currentStep === 3) { 
       if (!tailoredResumeResult?.tailoredResume) {
          toast({ variant: "destructive", title: "Missing Resume", description: "No tailored resume available to search for jobs." });
         return;
@@ -149,16 +162,20 @@ export default function CareerCraftWizard() {
         return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} />;
     }
   };
+  
+  const stepTitles: Record<number, string> = {
+    1: t('step1Title'),
+    2: t('step2Title'),
+    3: t('step3Title'),
+    4: t('step4Title'),
+  };
 
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-semibold text-foreground">Step {currentStep} of 4</h2>
+        <h2 className="text-3xl font-semibold text-foreground">{t('stepCounter', { currentStep })}</h2>
         <p className="text-muted-foreground">
-          {currentStep === 1 && "Provide Job and Candidate Information"}
-          {currentStep === 2 && "AI Compatibility Analysis"}
-          {currentStep === 3 && "AI Tailored Resume"}
-          {currentStep === 4 && "Automated Job Search Results"}
+          {stepTitles[currentStep]}
         </p>
       </div>
 
@@ -167,7 +184,7 @@ export default function CareerCraftWizard() {
       <div className="flex justify-between items-center pt-6 border-t">
         {currentStep > 1 && (
           <Button variant="outline" onClick={handlePreviousStep} disabled={loading}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Previous
+            <ArrowLeft className="mr-2 h-4 w-4" /> {t('previousButton')}
           </Button>
         )}
         {currentStep === 1 && <div></div>} {/* Placeholder for alignment */}
@@ -175,13 +192,13 @@ export default function CareerCraftWizard() {
         {currentStep < 4 ? (
           <Button onClick={handleNextStep} disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {currentStep === 1 ? "Analyze Compatibility" : currentStep === 2 ? "Build Resume" : "Find Jobs"}
+            {currentStep === 1 ? t('analyzeButton') : currentStep === 2 ? t('buildResumeButton') : t('findJobsButton')}
             {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         ) : (
           <Button onClick={resetWizard} disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Start Over
+            {t('startOverButton')}
             {!loading && <RotateCcw className="ml-2 h-4 w-4" />}
           </Button>
         )}

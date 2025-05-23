@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ChangeEvent } from 'react';
@@ -9,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Image from 'next/image';
 import { UploadCloud } from 'lucide-react';
+import { useLanguage } from '@/contexts/language-context';
 
 interface InformationGatheringStepProps {
   formState: CareerCraftFormState;
@@ -17,36 +19,38 @@ interface InformationGatheringStepProps {
 }
 
 export function InformationGatheringStep({ formState, onInputChange, onFileChange }: InformationGatheringStepProps) {
+  const { t } = useLanguage();
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Job Offer Details</CardTitle>
-          <CardDescription>Provide the job offer information. Paste the full text for best results.</CardDescription>
+          <CardTitle>{t('jobOfferDetailsTitle')}</CardTitle>
+          <CardDescription>{t('jobOfferDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="jobOfferText">Job Offer Text (Required)</Label>
+            <Label htmlFor="jobOfferText">{t('jobOfferTextLabel')}</Label>
             <Textarea
               id="jobOfferText"
               name="jobOfferText"
               value={formState.jobOfferText}
               onChange={onInputChange}
-              placeholder="Paste the full job description here..."
+              placeholder={t('jobOfferTextPlaceholder')}
               rows={8}
               className="mt-1"
               required
             />
           </div>
           <div>
-            <Label htmlFor="jobOfferUrl">Job Offer URL (Optional)</Label>
+            <Label htmlFor="jobOfferUrl">{t('jobOfferUrlLabel')}</Label>
             <Input
               id="jobOfferUrl"
               name="jobOfferUrl"
               type="url"
               value={formState.jobOfferUrl}
               onChange={onInputChange}
-              placeholder="https://example.com/job-posting"
+              placeholder={t('jobOfferUrlPlaceholder')}
               className="mt-1"
             />
           </div>
@@ -55,28 +59,28 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
 
       <Card>
         <CardHeader>
-          <CardTitle>Candidate Information</CardTitle>
-          <CardDescription>Provide your resume details and a profile photo.</CardDescription>
+          <CardTitle>{t('candidateInfoTitle')}</CardTitle>
+          <CardDescription>{t('candidateInfoDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="resumeText">Resume Text (Required)</Label>
+            <Label htmlFor="resumeText">{t('resumeTextLabel')}</Label>
             <Textarea
               id="resumeText"
               name="resumeText"
               value={formState.resumeText}
               onChange={onInputChange}
-              placeholder="Paste your full resume text here..."
+              placeholder={t('resumeTextPlaceholder')}
               rows={10}
               className="mt-1"
               required
             />
             <p className="text-sm text-muted-foreground mt-1">
-              You can also upload a PDF, but please ensure its text content is pasted above for AI processing.
+              {t('resumePdfHint')}
             </p>
           </div>
           <div>
-            <Label htmlFor="resumePdf">Upload Resume PDF (Optional)</Label>
+            <Label htmlFor="resumePdf">{t('resumePdfLabel')}</Label>
             <Input
               id="resumePdf"
               name="resumePdf"
@@ -87,7 +91,7 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
             />
           </div>
           <div>
-            <Label htmlFor="profilePhoto">Profile Photo (Optional)</Label>
+            <Label htmlFor="profilePhoto">{t('profilePhotoLabel')}</Label>
             <Input
               id="profilePhoto"
               name="profilePhoto"
@@ -98,28 +102,28 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
             />
             {formState.profilePhotoDataUri && (
               <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
-                <Image src={formState.profilePhotoDataUri} alt="Profile Preview" width={100} height={100} className="rounded" />
-                <p className="text-xs text-muted-foreground mt-1 truncate w-24">{formState.profilePhotoName || "Uploaded Photo"}</p>
+                <Image src={formState.profilePhotoDataUri} alt={t('profilePhotoPreviewAlt')} width={100} height={100} className="rounded" />
+                <p className="text-xs text-muted-foreground mt-1 truncate w-24">{formState.profilePhotoName || t('profilePhotoUploaded')}</p>
               </div>
             )}
              {!formState.profilePhotoDataUri && (
               <div className="mt-2 p-4 border rounded-md border-dashed flex flex-col items-center justify-center text-muted-foreground" data-ai-hint="placeholder avatar">
                 <UploadCloud className="h-8 w-8 mb-1" />
-                <span>Preview</span>
+                <span>{t('profilePhotoPlaceholder')}</span>
               </div>
             )}
           </div>
           <div>
-            <Label htmlFor="language">Language for Resume</Label>
+            <Label htmlFor="language">{t('languageForResumeLabel')}</Label>
             <Select name="language" value={formState.language} onValueChange={(value) => onInputChange({ target: { name: 'language', value } } as any)}>
               <SelectTrigger className="w-full mt-1">
-                <SelectValue placeholder="Select language" />
+                <SelectValue placeholder={t('selectLanguagePlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="English">English</SelectItem>
-                <SelectItem value="Spanish">Spanish</SelectItem>
-                <SelectItem value="French">French</SelectItem>
-                <SelectItem value="German">German</SelectItem>
+                <SelectItem value="English">{t('langEnglish')}</SelectItem>
+                <SelectItem value="Spanish">{t('langSpanish')}</SelectItem>
+                <SelectItem value="French">{t('langFrench')}</SelectItem>
+                <SelectItem value="German">{t('langGerman')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
