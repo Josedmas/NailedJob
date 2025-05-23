@@ -105,14 +105,15 @@ export const extractTextFromFileTool = ai.defineTool(
         return { extractedText: errorMsg };
       }
       const base64Data = parts[1];
-      
+      console.log(`[extractTextFromFileTool] Base64 data length: ${base64Data.length}`); // DIAGNOSTIC LOG ADDED
+
       const buffer = Buffer.from(base64Data, 'base64');
       const bufferArray = new Uint8Array(buffer);
       console.log('[extractTextFromFileTool] PDF buffer created. Calling getDocument...');
-      
+
       // Pass disableWorker: true to the getDocument call
       const pdf = await pdfjsLib.getDocument({ data: bufferArray, disableWorker: true }).promise as PDFDocumentProxy;
-      
+
       if (!pdf || typeof pdf.numPages !== 'number') {
         const errorMsg = 'Error extracting text: Failed to load PDF document or invalid PDF structure.';
         console.error('[extractTextFromFileTool] Failed to load PDF document. PDF object:', pdf);
@@ -123,7 +124,7 @@ export const extractTextFromFileTool = ai.defineTool(
         return { extractedText: 'Error extracting text: PDF document has no pages.' };
       }
       console.log('[extractTextFromFileTool] PDF document loaded. Num pages:', pdf.numPages);
-      
+
       let allText = "";
       // Iterate over all pages
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -131,13 +132,13 @@ export const extractTextFromFileTool = ai.defineTool(
         const page = await pdf.getPage(i);
         if (!page) {
             console.warn(`[extractTextFromFileTool] Could not get page ${i} from PDF.`);
-            allText += `\n[Error: Could not retrieve page ${i}]`; 
+            allText += `\n[Error: Could not retrieve page ${i}]`;
             continue;
         }
         console.log(`[extractTextFromFileTool] Page ${i} retrieved. Getting textContent...`);
         const textContent = await page.getTextContent();
 
-        if (!textContent || !Array.isArray(textContent.items) || textContent.items.length === 0) { 
+        if (!textContent || !Array.isArray(textContent.items) || textContent.items.length === 0) {
               console.warn(`[extractTextFromFileTool] No text items found for page ${i}. Possibly image-based PDF or empty page.`);
               allText += `\n[Warning: Page ${i} contains no extractable text items.]`;
               continue;
@@ -149,9 +150,9 @@ export const extractTextFromFileTool = ai.defineTool(
           .join(" ");
         allText += pageText + "\n"; // Add newline between pages
       }
-      
+
       const extractedText = allText.trim();
-      if (extractedText === "" || extractedText.startsWith("[Warning: Page") || extractedText.startsWith("[Error: Could not retrieve page")) { 
+      if (extractedText === "" || extractedText.startsWith("[Warning: Page") || extractedText.startsWith("[Error: Could not retrieve page")) {
         console.warn('[extractTextFromFileTool] Successfully processed PDF, but no substantive text content was found (e.g., image-based PDF or empty content).');
         // Return a specific error message that can be caught by the flow
         return { extractedText: "Error extracting text: No text content found in the uploaded PDF. The PDF might be image-based or empty." };
@@ -167,9 +168,3 @@ export const extractTextFromFileTool = ai.defineTool(
     }
   }
 );
-    
-    
-
-    
-
-    
