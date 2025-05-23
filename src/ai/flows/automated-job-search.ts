@@ -1,3 +1,4 @@
+
 // Use server directive is required for Genkit flows.
 'use server';
 
@@ -21,8 +22,10 @@ export type AutomatedJobSearchInput = z.infer<typeof AutomatedJobSearchInputSche
 
 const AutomatedJobSearchOutputSchema = z.object({
   jobPostings: z
-    .array(z.string())
-    .describe('A list of links to relevant job postings in Spain.'),
+    .array(z.string().url().describe('A direct, publicly accessible URL to an individual job posting.'))
+    .min(1, "At least one job posting link must be returned.") // Ensure at least one link is returned
+    .max(10, "No more than 10 job posting links should be returned.") // Limit to 10 links
+    .describe('A list of direct links to relevant job postings in Spain.'),
 });
 export type AutomatedJobSearchOutput = z.infer<typeof AutomatedJobSearchOutputSchema>;
 
@@ -34,19 +37,35 @@ const searchJobsPrompt = ai.definePrompt({
   name: 'searchJobsPrompt',
   input: {schema: AutomatedJobSearchInputSchema},
   output: {schema: AutomatedJobSearchOutputSchema},
-  prompt: `You are an expert job search assistant.
+  prompt: `You are an expert job search assistant specialized in finding active job opportunities in Spain.
 
-Given the following resume, find 10 relevant job postings in Spain from InfoJobs, LinkedIn, and Indeed.
+Based on the following resume:
+{{{resume}}}
 
-Resume: {{{resume}}}
+Your task is to:
+1. Identify up to 10 highly relevant job postings. The job location MUST be in Spain.
+2. Prioritize job boards like InfoJobs (infojobs.net) and LinkedIn Jobs (linkedin.com/jobs).
+3. Provide ONLY direct, publicly accessible URLs to the INDIVIDUAL job posting pages.
+4. Ensure the links are active and lead to a specific job description, NOT a general search results page, a company's main career portal, or a login page.
+5. You MUST return between 1 and 10 valid URLs.
 
-Return a list of links to the job postings.
+Output the results as a JSON object strictly adhering to the following format:
+{
+  "jobPostings": [
+    "https://www.infojobs.net/barcelona/oferta-de-trabajo-ejemplo/...", // Example of a valid InfoJobs link
+    "https://es.linkedin.com/jobs/view/ejemplo-de-oferta-de-trabajo-aqui-123456789" // Example of a valid LinkedIn Jobs link
+    // ... more links if found, up to 10
+  ]
+}
 
-Consider the job location to be Spain. ALWAYS return 10 links to job postings.
+If you cannot find any suitable, direct job posting links, return an empty array for "jobPostings" but still adhere to the JSON structure.
+Example of no results:
+{
+  "jobPostings": []
+}
 
-Ensure that the job postings are highly relevant to the resume provided.
-
-Output should be a JSON array of strings.`, // Ensure output is valid JSON
+Focus on quality and validity of the links. It's better to return fewer valid links than many invalid ones.
+`,
 });
 
 const automatedJobSearchFlow = ai.defineFlow(
@@ -57,6 +76,12 @@ const automatedJobSearchFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await searchJobsPrompt(input);
-    return output!;
+    // Ensure that if the output is null or jobPostings is null, we return an empty array
+    // to match the schema expectation, especially if the model provides an empty list.
+    if (!output || !output.jobPostings) {
+      return { jobPostings: [] };
+    }
+    return output;
   }
 );
+
