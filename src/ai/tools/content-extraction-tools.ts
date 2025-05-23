@@ -9,12 +9,13 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-// Attempt to import the .mjs version for better ESM compatibility
+// Switch to CommonJS version of legacy build for potentially better server-side worker handling
 // Also import GlobalWorkerOptions to try and disable worker globally
-import { getDocument, GlobalWorkerOptions, type TextItem } from 'pdfjs-dist/legacy/build/pdf.mjs';
+// Attempt to fix module resolution by removing .js extension
+import { getDocument, GlobalWorkerOptions, type TextItem } from 'pdfjs-dist/legacy/build/pdf';
 
 // Globally disable worker for pdfjs-dist
-// This should prevent attempts to load/setup pdf.worker.mjs in SSR
+// This should prevent attempts to load/setup pdf.worker.js in SSR
 if (GlobalWorkerOptions) {
   (GlobalWorkerOptions as any).isWorkerDisabled = true;
 }
