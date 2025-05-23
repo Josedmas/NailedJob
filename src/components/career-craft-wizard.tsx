@@ -131,6 +131,7 @@ export default function CareerCraftWizard() {
             jobOfferUrl: formState.jobOfferUrl || undefined,
             resume: formState.resumeText || undefined,
             resumePdfDataUri: formState.resumePdfDataUri || undefined,
+            resumePdfName: formState.resumePdfName || undefined, // Pass PDF name
             language: formState.language, 
         };
         const result = await analyzeCompatibility(input);

@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -11,6 +12,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { fetchTextFromUrlTool, extractTextFromPdfTool } from '@/ai/tools/content-extraction-tools';
+import { saveCandidateData } from '@/lib/candidate-storage'; // Import the new service
 
 const CompatibilityInputSchema = z.object({
   jobDescription: z
@@ -30,6 +32,10 @@ const CompatibilityInputSchema = z.object({
     .string()
     .optional()
     .describe("The resume as a PDF data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
+  resumePdfName: z // Added to pass PDF name for storage
+    .string()
+    .optional()
+    .describe("The original name of the uploaded PDF resume file."),
   language: z
     .string()
     .describe('The language for the explanation, e.g., "English", "Spanish". Must be provided.'),
@@ -108,12 +114,19 @@ const compatibilityAnalysisFlow = ai.defineFlow(
   async (input) => {
     let jobDescriptionText = input.jobDescription;
     let resumeText = input.resume;
+    let jobDescriptionSource: 'text' | 'url' = 'text';
+    let jobOfferIdentifier = input.jobDescription || '';
+    let resumeSource: 'text' | 'pdf' = 'text';
+    let resumeIdentifier = input.resume || '';
+
 
     if (!jobDescriptionText && input.jobOfferUrl) {
       console.log(`Fetching job description from URL: ${input.jobOfferUrl}`);
       const { output } = await fetchTextFromUrlTool({url: input.jobOfferUrl});
       if (!output?.text) throw new Error('Could not extract text from job offer URL.');
       jobDescriptionText = output.text;
+      jobDescriptionSource = 'url';
+      jobOfferIdentifier = input.jobOfferUrl;
     }
 
     if (!resumeText && input.resumePdfDataUri) {
@@ -121,6 +134,8 @@ const compatibilityAnalysisFlow = ai.defineFlow(
       const { output } = await extractTextFromPdfTool({pdfDataUri: input.resumePdfDataUri});
        if (!output?.text) throw new Error('Could not extract text from PDF resume.');
       resumeText = output.text;
+      resumeSource = 'pdf';
+      resumeIdentifier = input.resumePdfName || 'unknown.pdf';
     }
     
     if (!jobDescriptionText) {
@@ -131,6 +146,20 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     }
 
     const {output} = await prompt({ jobDescriptionText, resumeText, language: input.language });
+    
+    if (output) {
+        // Save candidate data (fire and forget, don't let it block the response)
+        saveCandidateData({
+            resumeLanguage: input.language,
+            jobDescriptionSource,
+            jobOfferIdentifier: jobOfferIdentifier.substring(0, 500), // Truncate long text
+            resumeSource,
+            resumeIdentifier: resumeIdentifier.substring(0,500), // Truncate long text or use PDF name
+            compatibilityScore: output.compatibilityScore,
+        }).catch(err => {
+            console.error("Error saving candidate data in background:", err);
+        });
+    }
     return output!;
   }
 );
