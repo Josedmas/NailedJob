@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { fetchTextFromUrlTool, extractTextFromPdfTool } from '@/ai/tools/content-extraction-tools';
+import { fetchTextFromUrlTool, extractTextFromFileTool } from '@/ai/tools/content-extraction-tools';
 
 
 const AIResumeBuilderInputSchema = z.object({
@@ -26,11 +26,18 @@ const AIResumeBuilderInputSchema = z.object({
   resume: z
     .string()
     .optional()
-    .describe("The candidate's resume in text format. If not provided, resumePdfDataUri will be used."),
-  resumePdfDataUri: z
-    .string()
+    .describe("The candidate's resume in text format. If not provided, resumeFileDataUri will be used."),
+  resumeFileDataUri: // Renamed from resumePdfDataUri
+    z.string()
     .optional()
-    .describe("The resume as a PDF data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
+    .describe("The resume PDF file as a data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
+  resumeFileMimeType: // New field
+    z.string()
+    .optional()
+    .refine(val => !val || val === 'application/pdf', { // Allow undefined or ensure it's PDF
+        message: "If resumeFileMimeType is provided, it must be 'application/pdf'."
+    })
+    .describe('The MIME type of the uploaded resume file (must be "application/pdf" if provided). Required if resumeFileDataUri is provided.'),
   profilePhotoDataUri: z
     .string()
     .optional()
@@ -43,9 +50,12 @@ const AIResumeBuilderInputSchema = z.object({
 }).refine(data => data.jobDescription || data.jobOfferUrl, {
   message: "Either jobDescription text or jobOfferUrl must be provided.",
   path: ["jobDescription"], 
-}).refine(data => data.resume || data.resumePdfDataUri, {
-  message: "Either resume text or resumePdfDataUri must be provided.",
+}).refine(data => data.resume || data.resumeFileDataUri, {
+  message: "Either resume text or resumeFileDataUri must be provided.",
   path: ["resume"],
+}).refine(data => data.resumeFileDataUri ? (!!data.resumeFileMimeType && data.resumeFileMimeType === 'application/pdf') : true, {
+  message: "resumeFileMimeType ('application/pdf') is required if resumeFileDataUri is provided.",
+  path: ["resumeFileMimeType"],
 });
 
 export type AIResumeBuilderInput = z.infer<typeof AIResumeBuilderInputSchema>;
@@ -62,7 +72,6 @@ export async function aiResumeBuilder(input: AIResumeBuilderInput): Promise<AIRe
   return aiResumeBuilderFlow(input);
 }
 
-// Internal schema for the prompt, after processing URL/PDF
 const ProcessedAIResumeBuilderInputSchema = z.object({
   jobDescriptionText: z.string().describe('The job description text.'),
   resumeText: z.string().describe('The resume text.'),
@@ -103,7 +112,7 @@ const aiResumeBuilderFlow = ai.defineFlow(
     name: 'aiResumeBuilderFlow',
     inputSchema: AIResumeBuilderInputSchema,
     outputSchema: AIResumeBuilderOutputSchema,
-    tools: [fetchTextFromUrlTool, extractTextFromPdfTool],
+    tools: [fetchTextFromUrlTool, extractTextFromFileTool],
   },
   async (input) => {
     let jobDescriptionText = input.jobDescription;
@@ -116,12 +125,24 @@ const aiResumeBuilderFlow = ai.defineFlow(
       jobDescriptionText = output.text;
     }
 
-    if (!resumeText && input.resumePdfDataUri) {
-      console.log('Extracting resume text from PDF data URI.');
-      const { output } = await extractTextFromPdfTool({ pdfDataUri: input.resumePdfDataUri });
-      if (!output?.text) throw new Error('Could not extract text from PDF resume.');
-      resumeText = output.text;
+    if (!resumeText && input.resumeFileDataUri && input.resumeFileMimeType) {
+      if (input.resumeFileMimeType !== 'application/pdf') {
+        throw new Error(`Unsupported resume file type: ${input.resumeFileMimeType}. Only PDF is supported.`);
+      }
+      console.log(`Extracting resume text from PDF Data URI.`);
+      const { output: fileOutput } = await extractTextFromFileTool({ 
+        fileDataUri: input.resumeFileDataUri, 
+        mimeType: input.resumeFileMimeType 
+      });
+      if (!fileOutput?.extractedText) throw new Error('Could not extract text from the uploaded resume PDF file.');
+      if (fileOutput.extractedText.startsWith('Error extracting text:')) {
+        throw new Error(fileOutput.extractedText);
+      }
+      resumeText = fileOutput.extractedText;
+    } else if (!resumeText && input.resumeFileDataUri && !input.resumeFileMimeType) {
+        throw new Error("Resume file MIME type ('application/pdf') is missing, cannot extract text from file.");
     }
+
 
     if (!jobDescriptionText) {
         throw new Error("Job description text is missing after attempting to process inputs.");
@@ -133,7 +154,7 @@ const aiResumeBuilderFlow = ai.defineFlow(
     const processedInput: z.infer<typeof ProcessedAIResumeBuilderInputSchema> = {
         jobDescriptionText,
         resumeText,
-        profilePhotoDataUri: input.profilePhotoDataUri, // Pass photo for context, not for direct embedding by AI
+        profilePhotoDataUri: input.profilePhotoDataUri,
         language: input.language 
     };
 
@@ -141,4 +162,3 @@ const aiResumeBuilderFlow = ai.defineFlow(
     return output!;
   }
 );
-

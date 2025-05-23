@@ -31,11 +31,14 @@ export const translations: Record<Locale, Record<string, string>> = {
     candidateInfoTitle: 'Candidate Information',
     candidateInfoDescription: 'Provide your resume details and a profile photo.',
     candidateInfoDescriptionEnhanced: 'Provide your resume: paste text directly OR upload a PDF.',
+    candidateInfoDescriptionEnhancedFileUpload: 'Provide your resume: paste text directly OR upload a PDF file.',
     resumeTextLabel: 'Resume Text',
     resumeTextPlaceholder: 'Paste your full resume text here...',
     resumePdfHint: 'You can also upload a PDF, but please ensure its text content is pasted above for AI processing.',
     resumeTextOrPdf: 'Tip: If you upload a PDF, pasting text is optional.',
+    resumeTextOrFile: 'Tip: If you upload a PDF file, pasting text is optional.',
     resumePdfLabel: 'Upload Resume PDF',
+    resumeFileLabel: 'Upload Resume File (PDF)',
     fileUploadedLabel: 'File uploaded',
     profilePhotoLabel: 'Profile Photo (Optional)',
     profilePhotoPreviewAlt: 'Profile Preview',
@@ -47,6 +50,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     // Toasts / Errors
     missingInfoTitle: 'Missing Information',
     missingInfoDescription: 'Please provide job offer (text or URL) and resume (text or PDF).',
+    missingInfoDescriptionEnhanced: 'Please provide job offer (text or URL) and resume (text or PDF).',
+    fileErrorTitle: 'File Error',
+    mimeTypeMissingDescription: 'Could not determine file type for the uploaded resume. Please try again.',
+    mimeTypeMissingDescriptionBuild: 'Resume file type is missing. Cannot build resume.',
     aiErrorTitle: 'AI Error',
     aiUnexpectedErrorDescription: 'An unexpected error occurred with the AI service.',
     missingResumeTitle: 'Missing Resume',
@@ -105,7 +112,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     sectionTitle_Skills: "Skills",
     sectionTitle_Languages: "Languages",
     sectionTitle_Projects: "Projects",
-    sectionTitle_PersonalDetails_es: "Detalles personales", // Explicit Spanish version for parsing
+    sectionTitle_PersonalDetails_es: "Detalles personales", 
     sectionTitle_Profile_es: "Perfil",
     sectionTitle_WorkExperience_es: "Experiencia Laboral",
     sectionTitle_AcademicTraining_es: "Formación Académica",
@@ -141,11 +148,14 @@ export const translations: Record<Locale, Record<string, string>> = {
     candidateInfoTitle: 'Información del Candidato',
     candidateInfoDescription: 'Proporcione los detalles de su currículum y una foto de perfil.',
     candidateInfoDescriptionEnhanced: 'Proporcione su currículum: pegue el texto directamente O cargue un PDF.',
+    candidateInfoDescriptionEnhancedFileUpload: 'Proporcione su currículum: pegue el texto directamente O cargue un archivo PDF.',
     resumeTextLabel: 'Texto del Currículum',
     resumeTextPlaceholder: 'Pegue el texto completo de su currículum aquí...',
     resumePdfHint: 'También puede cargar un PDF, pero asegúrese de que su contenido de texto esté pegado arriba para el procesamiento de la IA.',
     resumeTextOrPdf: 'Consejo: Si carga un PDF, pegar el texto es opcional.',
+    resumeTextOrFile: 'Consejo: Si carga un archivo PDF, pegar el texto es opcional.',
     resumePdfLabel: 'Cargar Currículum PDF',
+    resumeFileLabel: 'Cargar Archivo de Currículum (PDF)',
     fileUploadedLabel: 'Archivo cargado',
     profilePhotoLabel: 'Foto de Perfil (Opcional)',
     profilePhotoPreviewAlt: 'Vista Previa de Perfil',
@@ -157,6 +167,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     // Toasts / Errors
     missingInfoTitle: 'Información Faltante',
     missingInfoDescription: 'Por favor, proporcione la oferta de empleo (texto o URL) y el currículum (texto o PDF).',
+    missingInfoDescriptionEnhanced: 'Por favor, proporcione la oferta de empleo (texto o URL) y el currículum (texto o PDF).',
+    fileErrorTitle: 'Error de Archivo',
+    mimeTypeMissingDescription: 'No se pudo determinar el tipo de archivo para el currículum cargado. Por favor, inténtalo de nuevo.',
+    mimeTypeMissingDescriptionBuild: 'Falta el tipo de archivo del currículum. No se puede crear el currículum.',
     aiErrorTitle: 'Error de IA',
     aiUnexpectedErrorDescription: 'Ocurrió un error inesperado con el servicio de IA.',
     missingResumeTitle: 'Falta Currículum',
@@ -207,7 +221,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     // Loading Indicator
     loadingMessageDefault: "Procesando...",
     loadingAiMagic: "Por favor espera, ¡la IA está haciendo su magia!",
-     // Resume Section Titles (for PDF parsing and generation)
+    // Resume Section Titles (for PDF parsing and generation)
     sectionTitle_ContactInformation: "Detalles personales",
     sectionTitle_Profile: "Perfil",
     sectionTitle_WorkExperience: "Experiencia Laboral",
@@ -226,7 +240,7 @@ export const translations: Record<Locale, Record<string, string>> = {
 };
 
 export const getTranslation = (locale: Locale, key: string, params?: Record<string, string | number>): string => {
-  let text = translations[locale]?.[key] || translations['en']?.[key] || key; // Fallback to English then key
+  let text = translations[locale]?.[key] || translations['en']?.[key] || key; 
   if (params) {
     Object.keys(params).forEach(paramKey => {
       text = text.replace(`{${paramKey}}`, String(params[paramKey]));
@@ -234,4 +248,3 @@ export const getTranslation = (locale: Locale, key: string, params?: Record<stri
   }
   return text;
 };
-

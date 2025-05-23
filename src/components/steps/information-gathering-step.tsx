@@ -67,7 +67,7 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
       <Card>
         <CardHeader>
           <CardTitle>{t('candidateInfoTitle')}</CardTitle>
-          <CardDescription>{t('candidateInfoDescriptionEnhanced')}</CardDescription>
+          <CardDescription>{t('candidateInfoDescriptionEnhancedFileUpload')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -84,25 +84,25 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
               rows={8}
               className="mt-1"
             />
-            <p className="text-sm text-muted-foreground mt-1">{t('resumeTextOrPdf')}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t('resumeTextOrFile')}</p>
           </div>
           <div className="text-center my-2 text-sm text-muted-foreground">{t('orSeparator')}</div>
           <div>
-            <Label htmlFor="resumePdf">
+            <Label htmlFor="resumeFile">
                 <UploadCloud className="inline-block mr-1 h-4 w-4 align-text-bottom" />
-                {t('resumePdfLabel')}
+                {t('resumeFileLabel')}
             </Label>
             <Input
-              id="resumePdf"
-              name="resumePdf"
+              id="resumeFile"
+              name="resumeFile" // Ensure this name matches in handleFileChange
               type="file"
-              accept=".pdf"
+              accept=".pdf,application/pdf"
               onChange={onFileChange}
               className="mt-1"
             />
-            {formState.resumePdfName && (
+            {formState.resumeFileName && (
                 <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                    {t('fileUploadedLabel')}: {formState.resumePdfName}
+                    {t('fileUploadedLabel')}: {formState.resumeFileName} ({formState.resumeFileMimeType})
                 </p>
             )}
           </div>

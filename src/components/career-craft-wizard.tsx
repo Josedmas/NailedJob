@@ -23,26 +23,28 @@ export interface CareerCraftFormState {
   jobOfferText: string;
   jobOfferUrl: string;
   resumeText: string;
-  resumePdfName: string;
-  resumePdfDataUri: string;
+  resumeFileName: string; // Renamed from resumePdfName
+  resumeFileDataUri: string; // Renamed from resumePdfDataUri
+  resumeFileMimeType: string; // New field for MIME type
   profilePhotoName: string;
   profilePhotoDataUri: string;
-  language: string; // This is language for resume generation, distinct from app UI language
+  language: string; 
 }
 
 const initialFormState: CareerCraftFormState = {
   jobOfferText: '',
   jobOfferUrl: '',
   resumeText: '',
-  resumePdfName: '',
-  resumePdfDataUri: '',
+  resumeFileName: '',
+  resumeFileDataUri: '',
+  resumeFileMimeType: '',
   profilePhotoName: '',
   profilePhotoDataUri: '',
-  language: 'English', // Default language for resume content
+  language: 'English', 
 };
 
 export default function CareerCraftWizard() {
-  const { t, language: appLanguage } = useLanguage(); // appLanguage for UI, formState.language for resume
+  const { t, language: appLanguage } = useLanguage();
   const [currentStep, setCurrentStep] = useState(1);
   const [formState, setFormState] = useState<CareerCraftFormState>(initialFormState);
   const [compatibilityResult, setCompatibilityResult] = useState<CompatibilityOutput | null>(null);
@@ -76,11 +78,12 @@ export default function CareerCraftWizard() {
             profilePhotoDataUri: reader.result as string,
             profilePhotoName: file.name,
           }));
-        } else if (e.target.name === 'resumePdf') {
+        } else if (e.target.name === 'resumeFile') { // Changed from resumePdf
            setFormState(prev => ({
             ...prev,
-            resumePdfDataUri: reader.result as string,
-            resumePdfName: file.name,
+            resumeFileDataUri: reader.result as string,
+            resumeFileName: file.name,
+            resumeFileMimeType: file.type, // Store MIME type
           }));
         }
       };
@@ -90,7 +93,6 @@ export default function CareerCraftWizard() {
 
   const resetWizard = () => {
     setCurrentStep(1);
-    // Reset form state while preserving the language derived from appLanguage
     const resumeLang = appLanguage === 'es' ? 'Spanish' : 'English';
     setFormState({...initialFormState, language: resumeLang});
     setCompatibilityResult(null);
@@ -117,11 +119,19 @@ export default function CareerCraftWizard() {
 
   const handleNextStep = async () => {
     if (currentStep === 1) { 
-      if ((!formState.jobOfferText && !formState.jobOfferUrl) || (!formState.resumeText && !formState.resumePdfDataUri)) {
+      if ((!formState.jobOfferText && !formState.jobOfferUrl) || (!formState.resumeText && !formState.resumeFileDataUri)) {
         toast({ 
             variant: "destructive", 
             title: t('missingInfoTitle') || "Missing Information", 
-            description: t('missingInfoDescription') || "Please provide job offer (text or URL) and resume (text or PDF)." 
+            description: t('missingInfoDescriptionEnhanced') || "Please provide job offer (text or URL) and resume (text, PDF, or DOCX)." 
+        });
+        return;
+      }
+      if (formState.resumeFileDataUri && !formState.resumeFileMimeType) {
+        toast({
+          variant: "destructive",
+          title: t('fileErrorTitle') || "File Error",
+          description: t('mimeTypeMissingDescription') || "Could not determine file type for the uploaded resume. Please try again.",
         });
         return;
       }
@@ -130,8 +140,9 @@ export default function CareerCraftWizard() {
             jobDescription: formState.jobOfferText || undefined, 
             jobOfferUrl: formState.jobOfferUrl || undefined,
             resume: formState.resumeText || undefined,
-            resumePdfDataUri: formState.resumePdfDataUri || undefined,
-            resumePdfName: formState.resumePdfName || undefined, // Pass PDF name
+            resumeFileDataUri: formState.resumeFileDataUri || undefined,
+            resumeFileName: formState.resumeFileName || undefined,
+            resumeFileMimeType: formState.resumeFileMimeType || undefined,
             language: formState.language, 
         };
         const result = await analyzeCompatibility(input);
@@ -139,12 +150,21 @@ export default function CareerCraftWizard() {
         setCurrentStep(2);
       });
     } else if (currentStep === 2) { 
+      if (formState.resumeFileDataUri && !formState.resumeFileMimeType) {
+         toast({
+          variant: "destructive",
+          title: t('fileErrorTitle') || "File Error",
+          description: t('mimeTypeMissingDescriptionBuild') || "Resume file type is missing. Cannot build resume.",
+        });
+        return;
+      }
       await callAI(async () => {
         const input: AIResumeBuilderInput = {
           jobDescription: formState.jobOfferText || undefined,
           jobOfferUrl: formState.jobOfferUrl || undefined,
           resume: formState.resumeText || undefined,
-          resumePdfDataUri: formState.resumePdfDataUri || undefined,
+          resumeFileDataUri: formState.resumeFileDataUri || undefined,
+          resumeFileMimeType: formState.resumeFileMimeType || undefined,
           profilePhotoDataUri: formState.profilePhotoDataUri || undefined,
           language: formState.language,
         };
@@ -215,7 +235,7 @@ export default function CareerCraftWizard() {
             <ArrowLeft className="mr-2 h-4 w-4" /> {t('previousButton')}
           </Button>
         )}
-        {currentStep === 1 && <div></div>} {/* Placeholder for alignment */}
+        {currentStep === 1 && <div></div>} 
         
         {currentStep < 4 ? (
           <Button onClick={handleNextStep} disabled={loading}>

@@ -11,8 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { fetchTextFromUrlTool, extractTextFromPdfTool } from '@/ai/tools/content-extraction-tools';
-// import { saveCandidateData } from '@/lib/candidate-storage'; // Using MongoDB now
+import { fetchTextFromUrlTool, extractTextFromFileTool } from '@/ai/tools/content-extraction-tools';
 import { saveCandidateDataToMongoDB } from '@/lib/mongodb-candidate-storage';
 
 
@@ -29,24 +28,34 @@ const CompatibilityInputSchema = z.object({
   resume: z
     .string()
     .optional()
-    .describe('The resume as a string. If not provided, resumePdfDataUri will be used.'),
-  resumePdfDataUri: z
-    .string()
+    .describe('The resume as a string. If not provided, resumeFileDataUri will be used.'),
+  resumeFileDataUri: // Renamed from resumePdfDataUri
+    z.string()
     .optional()
-    .describe("The resume as a PDF data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
-  resumePdfName: z 
-    .string()
+    .describe("The resume PDF file as a data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
+  resumeFileMimeType: // New field
+    z.string()
     .optional()
-    .describe("The original name of the uploaded PDF resume file."),
+    .refine(val => !val || val === 'application/pdf', { // Allow undefined or ensure it's PDF
+        message: "If resumeFileMimeType is provided, it must be 'application/pdf'."
+    })
+    .describe('The MIME type of the uploaded resume file (must be "application/pdf" if provided). Required if resumeFileDataUri is provided.'),
+  resumeFileName: // Renamed from resumePdfName
+    z.string()
+    .optional()
+    .describe("The original name of the uploaded resume PDF file."),
   language: z
     .string()
     .describe('The language for the explanation, e.g., "English", "Spanish". Must be provided.'),
 }).refine(data => data.jobDescription || data.jobOfferUrl, {
   message: "Either jobDescription text or jobOfferUrl must be provided.",
   path: ["jobDescription"], 
-}).refine(data => data.resume || data.resumePdfDataUri, {
-  message: "Either resume text or resumePdfDataUri must be provided.",
+}).refine(data => data.resume || data.resumeFileDataUri, {
+  message: "Either resume text or resumeFileDataUri must be provided.",
   path: ["resume"],
+}).refine(data => data.resumeFileDataUri ? (!!data.resumeFileMimeType && data.resumeFileMimeType === 'application/pdf') : true, {
+  message: "resumeFileMimeType ('application/pdf') is required if resumeFileDataUri is provided.",
+  path: ["resumeFileMimeType"],
 });
 
 export type CompatibilityInput = z.infer<typeof CompatibilityInputSchema>;
@@ -71,7 +80,6 @@ export async function analyzeCompatibility(
   return compatibilityAnalysisFlow(input);
 }
 
-// Internal schema for the prompt, after processing URL/PDF
 const ProcessedCompatibilityInputSchema = z.object({
   jobDescriptionText: z.string().describe('The job description text.'),
   resumeText: z.string().describe('The resume text.'),
@@ -111,33 +119,44 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     name: 'compatibilityAnalysisFlow',
     inputSchema: CompatibilityInputSchema,
     outputSchema: CompatibilityOutputSchema,
-    tools: [fetchTextFromUrlTool, extractTextFromPdfTool],
+    tools: [fetchTextFromUrlTool, extractTextFromFileTool],
   },
   async (input) => {
     let jobDescriptionText = input.jobDescription;
     let resumeText = input.resume;
     let jobDescriptionSource: 'text' | 'url' = 'text';
     let jobOfferIdentifier = input.jobDescription || '';
-    let resumeSource: 'text' | 'pdf' = 'text';
+    let resumeSource: 'text' | 'file' = 'text'; 
     let resumeIdentifier = input.resume || '';
 
 
     if (!jobDescriptionText && input.jobOfferUrl) {
       console.log(`Fetching job description from URL: ${input.jobOfferUrl}`);
-      const { output: urlOutput } = await fetchTextFromUrlTool({url: input.jobOfferUrl}); // Renamed to avoid conflict
+      const { output: urlOutput } = await fetchTextFromUrlTool({url: input.jobOfferUrl});
       if (!urlOutput?.text) throw new Error('Could not extract text from job offer URL.');
       jobDescriptionText = urlOutput.text;
       jobDescriptionSource = 'url';
       jobOfferIdentifier = input.jobOfferUrl;
     }
 
-    if (!resumeText && input.resumePdfDataUri) {
-      console.log('Extracting resume text from PDF data URI.');
-      const { output: pdfOutput } = await extractTextFromPdfTool({pdfDataUri: input.resumePdfDataUri}); // Renamed to avoid conflict
-       if (!pdfOutput?.text) throw new Error('Could not extract text from PDF resume.');
-      resumeText = pdfOutput.text;
-      resumeSource = 'pdf';
-      resumeIdentifier = input.resumePdfName || 'unknown.pdf';
+    if (!resumeText && input.resumeFileDataUri && input.resumeFileMimeType) {
+      if (input.resumeFileMimeType !== 'application/pdf') {
+        throw new Error(`Unsupported resume file type: ${input.resumeFileMimeType}. Only PDF is supported.`);
+      }
+      console.log(`Extracting resume text from PDF Data URI.`);
+      const { output: fileOutput } = await extractTextFromFileTool({
+        fileDataUri: input.resumeFileDataUri,
+        mimeType: input.resumeFileMimeType,
+      });
+      if (!fileOutput?.extractedText) throw new Error('Could not extract text from the uploaded resume PDF file.');
+      if (fileOutput.extractedText.startsWith('Error extracting text:')) {
+        throw new Error(fileOutput.extractedText);
+      }
+      resumeText = fileOutput.extractedText;
+      resumeSource = 'file';
+      resumeIdentifier = input.resumeFileName || 'unknown_pdf_file';
+    } else if (!resumeText && input.resumeFileDataUri && !input.resumeFileMimeType) {
+        throw new Error("Resume file MIME type ('application/pdf') is missing, cannot extract text from file.");
     }
     
     if (!jobDescriptionText) {
@@ -147,16 +166,15 @@ const compatibilityAnalysisFlow = ai.defineFlow(
         throw new Error("Resume text is missing after attempting to process inputs.");
     }
 
-    const {output: promptOutput} = await prompt({ jobDescriptionText, resumeText, language: input.language }); // Renamed to avoid conflict
+    const {output: promptOutput} = await prompt({ jobDescriptionText, resumeText, language: input.language });
     
     if (promptOutput) {
-        // Save candidate data to MongoDB (fire and forget, don't let it block the response)
-        saveCandidateDataToMongoDB({ // Changed function call
+        saveCandidateDataToMongoDB({
             resumeLanguage: input.language,
             jobDescriptionSource,
-            jobOfferIdentifier: jobOfferIdentifier.substring(0, 500), // Truncate long text
+            jobOfferIdentifier: jobOfferIdentifier.substring(0, 500),
             resumeSource,
-            resumeIdentifier: resumeIdentifier.substring(0,500), // Truncate long text or use PDF name
+            resumeIdentifier: resumeIdentifier.substring(0,500),
             compatibilityScore: promptOutput.compatibilityScore,
         }).catch(err => {
             console.error("Error saving candidate data to MongoDB in background:", err);
@@ -165,4 +183,3 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     return promptOutput!;
   }
 );
-
