@@ -200,7 +200,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     jobOpportunitiesTitle: "Oportunidades de Empleo",
     noJobPostingsFound: "No se encontraron ofertas de empleo basadas en tu nuevo currículum. Quizás quieras refinar tu currículum o intentarlo de nuevo más tarde.",
     jobListingsPlaceholder: "Las ofertas de empleo basadas en tu nuevo currículum aparecerán aquí.",
-    curatedJobOpportunitiesTitle: "Oportunidades de Empleo Seleccionadas",
+    curatedJobOpportunitiesTitle: "Oportunidades de Empleo que te podrían interesar",
     curatedJobOpportunitiesDescription: "Aquí hay 10 ofertas de empleo en España que coinciden con tu currículum adaptado por IA.",
     jobPostingLinkText: "Oferta de Empleo {index}: {link}",
     goodLuckPrompt: "¡Mucha suerte con tus solicitudes! Haz clic en \"Empezar de Nuevo\" para procesar otra oferta de empleo.",
@@ -234,3 +234,4 @@ export const getTranslation = (locale: Locale, key: string, params?: Record<stri
   }
   return text;
 };
+
