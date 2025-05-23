@@ -119,7 +119,7 @@ const aiResumeBuilderFlow = ai.defineFlow(
     let resumeText = input.resume;
 
     if (!jobDescriptionText && input.jobOfferUrl) {
-      console.log(`Fetching job description from URL: ${input.jobOfferUrl}`);
+      console.log(`[AIResumeBuilderFlow] Fetching job description from URL: ${input.jobOfferUrl}`);
       const { output } = await fetchTextFromUrlTool({ url: input.jobOfferUrl });
       if (!output?.text) throw new Error('Could not extract text from job offer URL.');
       jobDescriptionText = output.text;
@@ -129,11 +129,14 @@ const aiResumeBuilderFlow = ai.defineFlow(
       if (input.resumeFileMimeType !== 'application/pdf') {
         throw new Error(`Unsupported resume file type: ${input.resumeFileMimeType}. Only PDF is supported.`);
       }
-      console.log(`Extracting resume text from PDF Data URI for resume builder.`);
+      console.log(`[AIResumeBuilderFlow] Extracting resume text from PDF Data URI.`);
       const { output: fileOutput } = await extractTextFromFileTool({
         fileDataUri: input.resumeFileDataUri,
         mimeType: input.resumeFileMimeType
       });
+
+      // Log the direct output from the tool for diagnostics
+      console.log('[AIResumeBuilderFlow] Output from extractTextFromFileTool:', JSON.stringify(fileOutput, null, 2));
 
       if (!fileOutput) {
         throw new Error('The tool responsible for reading the PDF failed to produce a result. The PDF might be unreadable, or an internal system error occurred during processing.');
