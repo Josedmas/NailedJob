@@ -92,6 +92,9 @@ export const extractTextFromFileTool = ai.defineTool(
   async ({ fileDataUri, mimeType }) => { // mimeType will always be 'application/pdf' here due to schema
     console.log('[extractTextFromFileTool] Tool invoked.');
     try {
+      console.log(`[extractTextFromFileTool] Received fileDataUri with length: ${fileDataUri.length}`);
+      console.log(`[extractTextFromFileTool] Received mimeType: ${mimeType}`);
+
       console.log('[extractTextFromFileTool] Attempting to parse Data URI for PDF.');
       if (!fileDataUri.startsWith('data:application/pdf;base64,')) {
         const errorMsg = 'Error extracting text: Invalid PDF data URI format. Must start with "data:application/pdf;base64,".';
@@ -106,16 +109,23 @@ export const extractTextFromFileTool = ai.defineTool(
       }
       const base64Data = parts[1];
       console.log(`[extractTextFromFileTool] Base64 data length: ${base64Data.length}`);
+      if (base64Data.length === 0) {
+        const errorMsg = 'Error extracting text: Base64 data part of PDF Data URI is empty.';
+        console.error(`[extractTextFromFileTool] ${errorMsg}`);
+        return { extractedText: errorMsg };
+      }
 
       const buffer = Buffer.from(base64Data, 'base64');
       const bufferArray = new Uint8Array(buffer);
-      console.log('[extractTextFromFileTool] PDF buffer created. Calling getDocument...');
-
-      // Pass disableWorker: true to the getDocument call
+      console.log('[extractTextFromFileTool] PDF buffer created from base64 data.');
+      console.log(`[extractTextFromFileTool] Buffer array length: ${bufferArray.length}`);
+      
+      console.log('[extractTextFromFileTool] Calling pdfjsLib.getDocument()...');
       const pdf = await pdfjsLib.getDocument({ data: bufferArray, disableWorker: true }).promise as PDFDocumentProxy;
+      console.log('[extractTextFromFileTool] pdfjsLib.getDocument() promise resolved.');
 
       if (!pdf || typeof pdf.numPages !== 'number') {
-        const errorMsg = 'Error extracting text: Failed to load PDF document or invalid PDF structure. The PDF might be corrupted or not a valid PDF file.';
+        const errorMsg = 'Error extracting text: Failed to load PDF document or invalid PDF structure after getDocument. The PDF might be corrupted or not a valid PDF file.';
         console.error('[extractTextFromFileTool] Failed to load PDF document. PDF object:', pdf);
         return { extractedText: errorMsg };
       }
@@ -123,7 +133,7 @@ export const extractTextFromFileTool = ai.defineTool(
         console.warn('[extractTextFromFileTool] PDF has 0 pages.');
         return { extractedText: 'Error extracting text: PDF document has no pages.' };
       }
-      console.log('[extractTextFromFileTool] PDF document loaded. Num pages:', pdf.numPages);
+      console.log('[extractTextFromFileTool] PDF document loaded successfully. Num pages:', pdf.numPages);
 
       let allText = "";
       // Iterate over all pages
@@ -132,16 +142,16 @@ export const extractTextFromFileTool = ai.defineTool(
         const page = await pdf.getPage(i);
         if (!page) {
             console.warn(`[extractTextFromFileTool] Could not get page ${i} from PDF.`);
-            allText += `\n[Error: Could not retrieve page ${i}]`;
-            continue;
+            allText += `\n[Error: Could not retrieve page ${i}]`; // Append error for this page
+            continue; // Continue to next page
         }
         console.log(`[extractTextFromFileTool] Page ${i} retrieved. Getting textContent...`);
         const textContent = await page.getTextContent();
 
         if (!textContent || !Array.isArray(textContent.items) || textContent.items.length === 0) {
               console.warn(`[extractTextFromFileTool] No text items found for page ${i}. Possibly image-based PDF or empty page.`);
-              allText += `\n[Warning: Page ${i} contains no extractable text items.]`;
-              continue;
+              allText += `\n[Warning: Page ${i} contains no extractable text items.]`; // Append warning for this page
+              continue; // Continue to next page
         }
         console.log(`[extractTextFromFileTool] TextContent for page ${i} retrieved with ${textContent.items.length} items. Joining items...`);
         const pageText = textContent.items
@@ -157,14 +167,21 @@ export const extractTextFromFileTool = ai.defineTool(
         // Return a specific error message that can be caught by the flow
         return { extractedText: "Error extracting text: No text content found in the uploaded PDF. The PDF might be image-based or empty." };
       } else {
-        console.log('[extractTextFromFileTool] Successfully extracted text from PDF.');
+        console.log('[extractTextFromFileTool] Successfully extracted text from PDF. Returning...');
       }
       return { extractedText };
 
     } catch (error: unknown) {
-      console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing:', error);
-      // Return a very simple, fixed error string that matches the schema, to maximize chances of it being returned.
-      return { extractedText: "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR" };
+      let errorMessage = "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR";
+      if (error instanceof Error) {
+        errorMessage = `Error extracting text: ${error.name} - ${error.message}. Stack: ${error.stack}`;
+      } else if (typeof error === 'string') {
+        errorMessage = `Error extracting text: ${error}`;
+      } else if (typeof error === 'object' && error !== null) {
+        errorMessage = `Error extracting text: ${JSON.stringify(error)}`;
+      }
+      console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing:', errorMessage);
+      return { extractedText: errorMessage };
     }
   }
 );
