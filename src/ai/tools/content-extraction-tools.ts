@@ -108,8 +108,8 @@ export const extractTextFromPdfTool = ai.defineTool(
       const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
       const pdfBuffer = Buffer.from(base64Data, 'base64');
       
-      // Call parser without options
-      const data = await parser(pdfBuffer); 
+      // Explicitly pass an empty options object
+      const data = await parser(pdfBuffer, {}); 
       
       return {text: data.text};
     } catch (error) {
