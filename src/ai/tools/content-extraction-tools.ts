@@ -9,7 +9,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import pdf from 'pdf-parse';
+// Removed static import: import pdf from 'pdf-parse';
 
 export const fetchTextFromUrlTool = ai.defineTool(
   {
@@ -83,6 +83,9 @@ export const extractTextFromPdfTool = ai.defineTool(
   },
   async ({pdfDataUri}) => {
     try {
+      // Dynamically import pdf-parse
+      const pdf = (await import('pdf-parse')).default;
+
       if (!pdfDataUri.startsWith('data:application/pdf;base64,')) {
         throw new Error('Invalid PDF data URI format.');
       }
@@ -106,4 +109,3 @@ export const extractTextFromPdfTool = ai.defineTool(
     }
   }
 );
-
