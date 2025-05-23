@@ -9,23 +9,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-// pdf-parse is dynamically imported below to potentially avoid import-time issues.
+import { getDocument, type TextItem } from 'pdfjs-dist/legacy/build/pdf.js';
 
-// Define a variable to hold the dynamically imported pdf-parse module.
-// It's typed loosely here as type information from pdf-parse might not be directly available without @types/pdf-parse.
-let pdfParser: ((dataBuffer: Buffer, options?: any) => Promise<{ text: string; [key: string]: any }>) | null = null;
-
-/**
- * Lazily loads and returns the pdf-parse module.
- * This ensures the module is imported only once when needed.
- */
-async function getPdfParser() {
-  if (!pdfParser) {
-    const pdfParseModule = await import('pdf-parse');
-    pdfParser = pdfParseModule.default; // pdf-parse exports its main function as default
-  }
-  return pdfParser;
-}
 
 export const fetchTextFromUrlTool = ai.defineTool(
   {
@@ -103,21 +88,29 @@ export const extractTextFromPdfTool = ai.defineTool(
         throw new Error('Invalid PDF data URI format.');
       }
       
-      const parser = await getPdfParser(); // Get the lazily-loaded parser
-
       const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
       const pdfBuffer = Buffer.from(base64Data, 'base64');
+      const typedArray = new Uint8Array(pdfBuffer); // pdfjs-dist expects Uint8Array
+
+      const pdfDoc = await getDocument({ data: typedArray }).promise;
+      let fullText = '';
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const textContent = await page.getTextContent();
+        // textContent.items can contain TextItem or TextMarkedContent.
+        // We are interested in TextItem which has 'str' property.
+        const pageText = textContent.items
+          .map(item => ('str' in item ? (item as TextItem).str : ''))
+          .join(' ');
+        fullText += pageText + (i < pdfDoc.numPages ? '\n' : ''); // Add newline between pages
+      }
       
-      // Explicitly pass an empty options object
-      const data = await parser(pdfBuffer, {}); 
-      
-      return {text: data.text};
+      return {text: fullText.trim()};
     } catch (error) {
-      console.error('Error parsing PDF content:', error);
+      console.error('Error parsing PDF content with pdfjs-dist:', error);
       throw new Error(
-         error instanceof Error ? error.message : 'Failed to process PDF for text extraction.'
+         error instanceof Error ? error.message : 'Failed to process PDF for text extraction using pdfjs-dist.'
       );
     }
   }
 );
-
