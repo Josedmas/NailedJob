@@ -23,12 +23,12 @@ export interface CareerCraftFormState {
   jobOfferText: string;
   jobOfferUrl: string;
   resumeText: string;
-  resumeFileName: string; // Renamed from resumePdfName
-  resumeFileDataUri: string; // Renamed from resumePdfDataUri
-  resumeFileMimeType: string; // New field for MIME type
+  resumeFileName: string;
+  resumeFileDataUri: string;
+  resumeFileMimeType: string;
   profilePhotoName: string;
   profilePhotoDataUri: string;
-  language: string; 
+  language: string;
 }
 
 const initialFormState: CareerCraftFormState = {
@@ -40,7 +40,7 @@ const initialFormState: CareerCraftFormState = {
   resumeFileMimeType: '',
   profilePhotoName: '',
   profilePhotoDataUri: '',
-  language: 'English', 
+  language: 'English',
 };
 
 export default function CareerCraftWizard() {
@@ -78,12 +78,12 @@ export default function CareerCraftWizard() {
             profilePhotoDataUri: reader.result as string,
             profilePhotoName: file.name,
           }));
-        } else if (e.target.name === 'resumeFile') { // Changed from resumePdf
+        } else if (e.target.name === 'resumeFile') {
            setFormState(prev => ({
             ...prev,
             resumeFileDataUri: reader.result as string,
             resumeFileName: file.name,
-            resumeFileMimeType: file.type, // Store MIME type
+            resumeFileMimeType: file.type || 'application/pdf', // Default to 'application/pdf' if file.type is empty
           }));
         }
       };
@@ -118,43 +118,43 @@ export default function CareerCraftWizard() {
   };
 
   const handleNextStep = async () => {
-    if (currentStep === 1) { 
+    if (currentStep === 1) {
       if ((!formState.jobOfferText && !formState.jobOfferUrl) || (!formState.resumeText && !formState.resumeFileDataUri)) {
-        toast({ 
-            variant: "destructive", 
-            title: t('missingInfoTitle') || "Missing Information", 
-            description: t('missingInfoDescriptionEnhanced') || "Please provide job offer (text or URL) and resume (text, PDF, or DOCX)." 
+        toast({
+            variant: "destructive",
+            title: t('missingInfoTitle') || "Missing Information",
+            description: t('missingInfoDescriptionEnhanced') || "Please provide job offer (text or URL) and resume (text or PDF)."
         });
         return;
       }
-      if (formState.resumeFileDataUri && !formState.resumeFileMimeType) {
+      if (formState.resumeFileDataUri && (!formState.resumeFileMimeType || formState.resumeFileMimeType !== 'application/pdf')) {
         toast({
           variant: "destructive",
           title: t('fileErrorTitle') || "File Error",
-          description: t('mimeTypeMissingDescription') || "Could not determine file type for the uploaded resume. Please try again.",
+          description: t('mimeTypeMissingDescription') || "Resume file must be a PDF.",
         });
         return;
       }
       await callAI(async () => {
-        const input: CompatibilityInput = { 
-            jobDescription: formState.jobOfferText || undefined, 
+        const input: CompatibilityInput = {
+            jobDescription: formState.jobOfferText || undefined,
             jobOfferUrl: formState.jobOfferUrl || undefined,
             resume: formState.resumeText || undefined,
             resumeFileDataUri: formState.resumeFileDataUri || undefined,
             resumeFileName: formState.resumeFileName || undefined,
-            resumeFileMimeType: formState.resumeFileMimeType || undefined,
-            language: formState.language, 
+            resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined, // Ensure it's application/pdf if URI is present
+            language: formState.language,
         };
         const result = await analyzeCompatibility(input);
         setCompatibilityResult(result);
         setCurrentStep(2);
       });
-    } else if (currentStep === 2) { 
-      if (formState.resumeFileDataUri && !formState.resumeFileMimeType) {
+    } else if (currentStep === 2) {
+      if (formState.resumeFileDataUri && (!formState.resumeFileMimeType || formState.resumeFileMimeType !== 'application/pdf')) {
          toast({
           variant: "destructive",
           title: t('fileErrorTitle') || "File Error",
-          description: t('mimeTypeMissingDescriptionBuild') || "Resume file type is missing. Cannot build resume.",
+          description: t('mimeTypeMissingDescriptionBuild') || "Resume file type is missing or not PDF. Cannot build resume.",
         });
         return;
       }
@@ -164,7 +164,7 @@ export default function CareerCraftWizard() {
           jobOfferUrl: formState.jobOfferUrl || undefined,
           resume: formState.resumeText || undefined,
           resumeFileDataUri: formState.resumeFileDataUri || undefined,
-          resumeFileMimeType: formState.resumeFileMimeType || undefined,
+          resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined, // Ensure it's application/pdf if URI is present
           profilePhotoDataUri: formState.profilePhotoDataUri || undefined,
           language: formState.language,
         };
@@ -172,12 +172,12 @@ export default function CareerCraftWizard() {
         setTailoredResumeResult(result);
         setCurrentStep(3);
       });
-    } else if (currentStep === 3) { 
+    } else if (currentStep === 3) {
       if (!tailoredResumeResult?.tailoredResume) {
-         toast({ 
-            variant: "destructive", 
-            title: t('missingResumeTitle') || "Missing Resume", 
-            description: t('missingResumeDescription') || "No tailored resume available to search for jobs." 
+         toast({
+            variant: "destructive",
+            title: t('missingResumeTitle') || "Missing Resume",
+            description: t('missingResumeDescription') || "No tailored resume available to search for jobs."
         });
         return;
       }
@@ -210,7 +210,7 @@ export default function CareerCraftWizard() {
         return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} />;
     }
   };
-  
+
   const stepTitles: Record<number, string> = {
     1: t('step1Title'),
     2: t('step2Title'),
@@ -235,8 +235,8 @@ export default function CareerCraftWizard() {
             <ArrowLeft className="mr-2 h-4 w-4" /> {t('previousButton')}
           </Button>
         )}
-        {currentStep === 1 && <div></div>} 
-        
+        {currentStep === 1 && <div></div>}
+
         {currentStep < 4 ? (
           <Button onClick={handleNextStep} disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
