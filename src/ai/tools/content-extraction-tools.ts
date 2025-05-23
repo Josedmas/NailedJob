@@ -8,17 +8,15 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import * as pdfjsLib from 'pdfjs-dist';
+
+// Import from the ES Module legacy build of pdfjs-dist as it resolved previously.
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PDFDocumentProxy, TextItem } from 'pdfjs-dist/types/src/display/api';
 
-// Set the worker source for pdfjs-dist.
-// For server-side Node.js, point to the worker file in node_modules directly.
-try {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
-} catch (e) {
-  console.warn("Could not set pdfjs workerSrc using require.resolve. This might cause issues if pdf.js worker is needed.", e);
-  // Fallback or further error handling if needed
-}
+// Configure pdfjs-dist: CRITICAL to do this before any getDocument call.
+// Globally disable worker for pdfjs-dist as the most direct way to prevent worker-related issues in SSR.
+(pdfjsLib.GlobalWorkerOptions as any).isWorkerDisabled = true;
+// REMOVED: (pdfjsLib.GlobalWorkerOptions as any).workerSrc = null; // This line was causing "Invalid workerSrc type"
 
 
 export const fetchTextFromUrlTool = ai.defineTool(
@@ -36,7 +34,7 @@ export const fetchTextFromUrlTool = ai.defineTool(
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to fetch URL: ${response.statusText}`);
+        throw new Error(`Failed to fetch URL: ${response.statusText} (Status: ${response.status})`);
       }
       let html = await response.text();
       // Basic HTML to text conversion
@@ -59,6 +57,9 @@ export const fetchTextFromUrlTool = ai.defineTool(
             bodyText = bodyText.replace(/<[^>]+>/g, ' ');
             text = bodyText.replace(/\s\s+/g, ' ').trim();
         }
+      }
+      if (!text) {
+        console.warn(`No text could be extracted from URL: ${url}. HTML content might be minimal or heavily JavaScript-driven.`);
       }
       return {text};
     } catch (error) {
@@ -91,23 +92,35 @@ export const extractTextFromFileTool = ai.defineTool(
   },
   async ({ fileDataUri, mimeType }) => { // mimeType will always be 'application/pdf' here due to schema
     try {
-      // No need to check mimeType === 'application/pdf' again, Zod literal schema handles it.
-
       const base64Data = fileDataUri.split(',')[1];
-      if (!base64Data) {
-        throw new Error('Invalid data URI format for PDF.');
+      if (base64Data === undefined || base64Data === null) {
+        throw new Error('Invalid data URI format for PDF: missing base64 data.');
       }
       const buffer = Buffer.from(base64Data, 'base64');
       
       const bufferArray = new Uint8Array(buffer);
+      
       // Pass disableWorker: true to prevent worker-related issues in SSR
+      // This is crucial for server-side usage and should be respected if GlobalWorkerOptions.isWorkerDisabled is set.
       const loadingTask = pdfjsLib.getDocument({ data: bufferArray, disableWorker: true });
       const pdf = await loadingTask.promise as PDFDocumentProxy;
       
+      if (!pdf || typeof pdf.numPages !== 'number') {
+        throw new Error('Failed to load PDF document or document structure is invalid.');
+      }
+
       let fullText = "";
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
+        if (!page) { 
+            console.warn(`Could not get page ${i} from PDF.`);
+            continue;
+        }
         const textContent = await page.getTextContent();
+        if (!textContent || !Array.isArray(textContent.items)) { 
+            console.warn(`Could not get textContent or items for page ${i}.`);
+            continue;
+        }
         const pageText = textContent.items
           .filter((item): item is TextItem => typeof (item as TextItem).str === 'string')
           .map((item: TextItem) => item.str)
@@ -116,8 +129,9 @@ export const extractTextFromFileTool = ai.defineTool(
       }
       return { extractedText: fullText.trim() };
     } catch (error: any) {
-      console.error('Error extracting text from PDF file tool:', error);
-      return { extractedText: `Error extracting text: ${error.message}` };
+      console.error('Error extracting text from PDF file tool (using pdfjs-dist):', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { extractedText: `Error extracting text: ${errorMessage}` };
     }
   }
 );
