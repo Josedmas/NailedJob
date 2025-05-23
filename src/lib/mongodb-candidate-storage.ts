@@ -9,7 +9,7 @@ interface CandidateDataRecord {
   resumeLanguage: string;
   jobDescriptionSource: 'text' | 'url';
   jobOfferIdentifier: string; // Truncated text or URL
-  resumeSource: 'text' | 'pdf';
+  resumeSource: 'text' | 'file'; // Corrected from 'text' | 'pdf' to 'text' | 'file'
   resumeIdentifier: string; // Truncated text or PDF name
   compatibilityScore?: number;
   // Add other fields as needed
