@@ -1,9 +1,11 @@
+
 "use client";
 
 import type { CompatibilityOutput } from '@/ai/flows/resume-compatibility-analysis';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label'; // Added import
 import { Info, AlertTriangle, CheckCircle, Zap } from 'lucide-react';
 import LoadingIndicator from '@/components/loading-indicator';
 
@@ -75,7 +77,7 @@ export function CompatibilityAnalysisStep({ result, loading }: CompatibilityAnal
       </CardHeader>
       <CardContent className="space-y-6">
         <div>
-          <div className="flex justify-between mb-1">
+          <div className="flex justify-between mb-1 items-center">
             <Label htmlFor="compatibilityScore" className="text-lg font-medium">Compatibility Score</Label>
             <span className={`text-2xl font-bold text-${adviceVariant === 'destructive' ? 'red-600' : adviceVariant === 'warning' ? 'yellow-600' : adviceVariant === 'success' ? 'green-600' : 'primary'}`}>
               {compatibilityScore}%
@@ -103,3 +105,4 @@ export function CompatibilityAnalysisStep({ result, loading }: CompatibilityAnal
     </Card>
   );
 }
+
