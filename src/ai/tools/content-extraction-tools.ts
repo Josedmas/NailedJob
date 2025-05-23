@@ -90,12 +90,19 @@ export const extractTextFromFileTool = ai.defineTool(
     outputSchema: ExtractTextFromFileOutputSchema,
   },
   async ({ fileDataUri, mimeType }) => { // mimeType will always be 'application/pdf' here due to schema
+    console.log('[extractTextFromFileTool] Tool invoked.');
     try {
-      console.log('[extractTextFromFileTool] Started processing PDF.');
+      console.log('[extractTextFromFileTool] Attempting to parse Data URI for PDF.');
+      if (!fileDataUri.startsWith('data:application/pdf;base64,')) {
+        const errorMsg = 'Error extracting text: Invalid PDF data URI format. Must start with "data:application/pdf;base64,".';
+        console.error(`[extractTextFromFileTool] ${errorMsg}`);
+        return { extractedText: errorMsg };
+      }
       const parts = fileDataUri.split(',');
       if (parts.length < 2 || !parts[1]) {
-        console.error('[extractTextFromFileTool] Invalid data URI format for PDF - missing base64 data part.');
-        return { extractedText: 'Error extracting text: Invalid data URI format for PDF - missing base64 data.' };
+        const errorMsg = 'Error extracting text: Invalid data URI format for PDF - missing base64 data part.';
+        console.error(`[extractTextFromFileTool] ${errorMsg}`);
+        return { extractedText: errorMsg };
       }
       const base64Data = parts[1];
       
@@ -103,12 +110,13 @@ export const extractTextFromFileTool = ai.defineTool(
       const bufferArray = new Uint8Array(buffer);
       console.log('[extractTextFromFileTool] PDF buffer created. Calling getDocument...');
       
-      const loadingTask = pdfjsLib.getDocument({ data: bufferArray, disableWorker: true });
-      const pdf = await loadingTask.promise as PDFDocumentProxy;
+      // Pass disableWorker: true to the getDocument call
+      const pdf = await pdfjsLib.getDocument({ data: bufferArray, disableWorker: true }).promise as PDFDocumentProxy;
       
       if (!pdf || typeof pdf.numPages !== 'number') {
-        console.error('[extractTextFromFileTool] Failed to load PDF document or invalid PDF structure. PDF object:', pdf);
-        return { extractedText: 'Error extracting text: Failed to load PDF document or PDF structure is invalid.' };
+        const errorMsg = 'Error extracting text: Failed to load PDF document or invalid PDF structure.';
+        console.error('[extractTextFromFileTool] Failed to load PDF document. PDF object:', pdf);
+        return { extractedText: errorMsg };
       }
       if (pdf.numPages === 0) {
         console.warn('[extractTextFromFileTool] PDF has 0 pages.');
@@ -123,7 +131,6 @@ export const extractTextFromFileTool = ai.defineTool(
         const page = await pdf.getPage(i);
         if (!page) {
             console.warn(`[extractTextFromFileTool] Could not get page ${i} from PDF.`);
-            // Optionally, continue to next page or return partial result/error
             allText += `\n[Error: Could not retrieve page ${i}]`; 
             continue;
         }
@@ -146,7 +153,6 @@ export const extractTextFromFileTool = ai.defineTool(
       const extractedText = allText.trim();
       if (extractedText === "") {
         console.warn('[extractTextFromFileTool] Successfully processed PDF, but no text content was found (e.g., image-based PDF).');
-        // This case will be handled by the flow that checks for empty extractedText
       } else {
         console.log('[extractTextFromFileTool] Successfully extracted text from PDF.');
       }
@@ -154,34 +160,19 @@ export const extractTextFromFileTool = ai.defineTool(
 
     } catch (error: unknown) {
       console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing:', error);
-      let errorMessage = "An unexpected error occurred during PDF processing.";
+      let simpleErrorMessage = "An unexpected error occurred during PDF processing.";
       if (error instanceof Error) {
-        errorMessage = error.message;
-        // Add more details from common pdfjs-dist errors if possible
-        if ('name' in error) errorMessage += ` (Name: ${error.name})`;
-        if ('code' in error) errorMessage += ` (Code: ${error.code})`;
-
+        simpleErrorMessage = error.message;
+         // Add more specific error details if available
+        if ((error as any).name) simpleErrorMessage += ` (Name: ${(error as any).name})`;
+        if ((error as any).code) simpleErrorMessage += ` (Code: ${(error as any).code})`;
       } else if (typeof error === 'string') {
-        errorMessage = error;
-      } else {
-        try {
-          errorMessage = JSON.stringify(error);
-        } catch (e) {
-          errorMessage = "An unidentifiable error occurred and could not be serialized.";
-        }
+        simpleErrorMessage = error;
       }
-      
-      // Log the full error structure for better debugging
-      if (typeof error === 'object' && error !== null) {
-        const errorDetails = Object.getOwnPropertyNames(error).reduce((acc, key) => {
-          acc[key] = (error as any)[key];
-          return acc;
-        }, {} as Record<string, any>);
-        console.error('[extractTextFromFileTool] Full error details:', errorDetails);
-      }
-      
-      return { extractedText: `Error extracting text: ${errorMessage}` };
+      // Ensure the returned object always matches the output schema, even in severe error cases.
+      return { extractedText: `Error extracting text: ${simpleErrorMessage}` };
     }
   }
 );
-
+    
+    
