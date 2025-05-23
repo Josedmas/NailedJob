@@ -179,7 +179,7 @@ export default function CareerCraftWizard() {
       case 2:
         return <CompatibilityAnalysisStep result={compatibilityResult} loading={loading} />;
       case 3:
-        return <ResumeBuilderStep result={tailoredResumeResult} loading={loading} />;
+        return <ResumeBuilderStep result={tailoredResumeResult} loading={loading} profilePhotoDataUri={formState.profilePhotoDataUri} />;
       case 4:
         return <JobSearchStep result={jobListingsResult} loading={loading} />;
       default:

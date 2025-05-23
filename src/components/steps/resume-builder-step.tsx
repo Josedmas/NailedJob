@@ -14,9 +14,10 @@ import { useLanguage } from '@/contexts/language-context';
 interface ResumeBuilderStepProps {
   result: AIResumeBuilderOutput | null;
   loading: boolean;
+  profilePhotoDataUri?: string;
 }
 
-export function ResumeBuilderStep({ result, loading }: ResumeBuilderStepProps) {
+export function ResumeBuilderStep({ result, loading, profilePhotoDataUri }: ResumeBuilderStepProps) {
   const { t } = useLanguage();
 
   if (loading) {
@@ -62,17 +63,52 @@ export function ResumeBuilderStep({ result, loading }: ResumeBuilderStepProps) {
 
     const pageHeight = doc.internal.pageSize.getHeight();
     const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 15;
+    const margin = 15; // mm
     const maxLineWidth = pageWidth - margin * 2;
-    let yPosition = margin;
     const lineHeight = 6; // Approx 6mm for font size 11
+
+    let yPosition = margin;
+
+    // Add profile photo if available
+    if (profilePhotoDataUri) {
+      try {
+        const parts = profilePhotoDataUri.split(',');
+        if (parts.length === 2) {
+            const mimeTypePart = parts[0].match(/:(.*?);/);
+            if (mimeTypePart && mimeTypePart[1]) {
+                const imageType = mimeTypePart[1].split('/')[1]?.toUpperCase(); // PNG, JPEG etc.
+                const base64Data = parts[1];
+                
+                if (imageType && (imageType === 'PNG' || imageType === 'JPEG' || imageType === 'JPG')) {
+                    const IMAGE_WIDTH_MM = 30;
+                    const IMAGE_HEIGHT_MM = 40; 
+                    const IMAGE_PADDING_BOTTOM_MM = 5;
+
+                    // Ensure image fits, if not, scale it down (simple example)
+                    // A more robust solution would calculate aspect ratio
+                    doc.addImage(base64Data, imageType, margin, margin, IMAGE_WIDTH_MM, IMAGE_HEIGHT_MM);
+                    yPosition = margin + IMAGE_HEIGHT_MM + IMAGE_PADDING_BOTTOM_MM;
+                } else {
+                    console.warn("Unsupported image type for PDF: ", imageType);
+                }
+            } else {
+                 console.warn("Could not parse image mime type from data URI for PDF.");
+            }
+        } else {
+            console.warn("Invalid data URI format for profile photo for PDF.");
+        }
+      } catch (error) {
+        console.error("Error adding image to PDF:", error);
+      }
+    }
+
 
     const lines = doc.splitTextToSize(tailoredResume, maxLineWidth);
 
     lines.forEach((line: string) => {
       if (yPosition + lineHeight > pageHeight - margin) {
         doc.addPage();
-        yPosition = margin;
+        yPosition = margin; // Reset Y for new page (image is only on first page here)
       }
       doc.text(line, margin, yPosition);
       yPosition += lineHeight;
