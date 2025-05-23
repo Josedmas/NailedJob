@@ -137,12 +137,12 @@ export const extractTextFromFileTool = ai.defineTool(
         console.log(`[extractTextFromFileTool] Page ${i} retrieved. Getting textContent...`);
         const textContent = await page.getTextContent();
 
-        if (!textContent || !Array.isArray(textContent.items)) { 
-              console.warn(`[extractTextFromFileTool] Could not get textContent or items for page ${i}.`);
-              allText += `\n[Error: Could not get text content for page ${i}]`;
+        if (!textContent || !Array.isArray(textContent.items) || textContent.items.length === 0) { 
+              console.warn(`[extractTextFromFileTool] No text items found for page ${i}. Possibly image-based PDF or empty page.`);
+              allText += `\n[Warning: Page ${i} contains no extractable text items.]`;
               continue;
         }
-        console.log(`[extractTextFromFileTool] TextContent for page ${i} retrieved. Joining items...`);
+        console.log(`[extractTextFromFileTool] TextContent for page ${i} retrieved with ${textContent.items.length} items. Joining items...`);
         const pageText = textContent.items
           .filter((item): item is TextItem => typeof (item as TextItem).str === 'string')
           .map((item: TextItem) => item.str)
@@ -151,8 +151,10 @@ export const extractTextFromFileTool = ai.defineTool(
       }
       
       const extractedText = allText.trim();
-      if (extractedText === "") {
-        console.warn('[extractTextFromFileTool] Successfully processed PDF, but no text content was found (e.g., image-based PDF).');
+      if (extractedText === "" || extractedText.startsWith("[Warning: Page")) { // Also check if only warnings were accumulated
+        console.warn('[extractTextFromFileTool] Successfully processed PDF, but no substantive text content was found (e.g., image-based PDF or empty content).');
+        // Return a specific error message that can be caught by the flow
+        return { extractedText: "Error extracting text: No text content found in the uploaded PDF. The PDF might be image-based or empty." };
       } else {
         console.log('[extractTextFromFileTool] Successfully extracted text from PDF.');
       }
@@ -175,4 +177,6 @@ export const extractTextFromFileTool = ai.defineTool(
   }
 );
     
+    
+
     
