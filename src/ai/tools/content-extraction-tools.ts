@@ -91,8 +91,8 @@ export const extractTextFromFileTool = ai.defineTool(
     outputSchema: ExtractTextFromFileOutputSchema,
   },
   async ({ fileDataUri, mimeType }) => { // mimeType will always be 'application/pdf' here due to schema
-    console.log('[extractTextFromFileTool] Started processing PDF.');
-    try {
+    try { // Moved try to wrap the entire function body
+      console.log('[extractTextFromFileTool] Started processing PDF.');
       const base64Data = fileDataUri.split(',')[1];
       if (!base64Data) {
         console.error('[extractTextFromFileTool] Invalid data URI format for PDF - missing base64 data.');
@@ -107,13 +107,13 @@ export const extractTextFromFileTool = ai.defineTool(
       // Pass disableWorker: true to prevent worker-related issues in SSR
       const loadingTask = pdfjsLib.getDocument({ data: bufferArray, disableWorker: true });
       const pdf = await loadingTask.promise as PDFDocumentProxy;
-      console.log('[extractTextFromFileTool] PDF document loaded. Num pages:', pdf.numPages);
       
       if (!pdf || typeof pdf.numPages !== 'number' || pdf.numPages === 0) {
         console.error('[extractTextFromFileTool] Failed to load PDF or PDF has no pages. PDF object:', pdf);
         return { extractedText: 'Error extracting text: Failed to load PDF document, PDF structure is invalid, or PDF has no pages.' };
       }
-
+      console.log('[extractTextFromFileTool] PDF document loaded. Num pages:', pdf.numPages);
+      
       // Simplify: Process only the first page for stability testing.
       const pageNumber = 1;
       console.log(`[extractTextFromFileTool] Getting page ${pageNumber}...`);
