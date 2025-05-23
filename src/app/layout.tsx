@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'CareerCraft AI',
+  title: 'NailedJob',
   description: 'AI-powered resume tailoring and job search assistant.',
 };
 

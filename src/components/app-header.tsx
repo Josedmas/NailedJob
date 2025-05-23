@@ -7,7 +7,7 @@ export default function AppHeader() {
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-primary hover:opacity-80 transition-opacity">
           <Briefcase className="h-8 w-8" />
-          <span>CareerCraft AI</span>
+          <span>NailedJob</span>
         </Link>
         {/* Future navigation items can go here */}
       </div>
