@@ -12,7 +12,9 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { fetchTextFromUrlTool, extractTextFromPdfTool } from '@/ai/tools/content-extraction-tools';
-import { saveCandidateData } from '@/lib/candidate-storage'; // Import the new service
+// import { saveCandidateData } from '@/lib/candidate-storage'; // Using MongoDB now
+import { saveCandidateDataToMongoDB } from '@/lib/mongodb-candidate-storage';
+
 
 const CompatibilityInputSchema = z.object({
   jobDescription: z
@@ -32,7 +34,7 @@ const CompatibilityInputSchema = z.object({
     .string()
     .optional()
     .describe("The resume as a PDF data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
-  resumePdfName: z // Added to pass PDF name for storage
+  resumePdfName: z 
     .string()
     .optional()
     .describe("The original name of the uploaded PDF resume file."),
@@ -122,18 +124,18 @@ const compatibilityAnalysisFlow = ai.defineFlow(
 
     if (!jobDescriptionText && input.jobOfferUrl) {
       console.log(`Fetching job description from URL: ${input.jobOfferUrl}`);
-      const { output } = await fetchTextFromUrlTool({url: input.jobOfferUrl});
-      if (!output?.text) throw new Error('Could not extract text from job offer URL.');
-      jobDescriptionText = output.text;
+      const { output: urlOutput } = await fetchTextFromUrlTool({url: input.jobOfferUrl}); // Renamed to avoid conflict
+      if (!urlOutput?.text) throw new Error('Could not extract text from job offer URL.');
+      jobDescriptionText = urlOutput.text;
       jobDescriptionSource = 'url';
       jobOfferIdentifier = input.jobOfferUrl;
     }
 
     if (!resumeText && input.resumePdfDataUri) {
       console.log('Extracting resume text from PDF data URI.');
-      const { output } = await extractTextFromPdfTool({pdfDataUri: input.resumePdfDataUri});
-       if (!output?.text) throw new Error('Could not extract text from PDF resume.');
-      resumeText = output.text;
+      const { output: pdfOutput } = await extractTextFromPdfTool({pdfDataUri: input.resumePdfDataUri}); // Renamed to avoid conflict
+       if (!pdfOutput?.text) throw new Error('Could not extract text from PDF resume.');
+      resumeText = pdfOutput.text;
       resumeSource = 'pdf';
       resumeIdentifier = input.resumePdfName || 'unknown.pdf';
     }
@@ -145,21 +147,22 @@ const compatibilityAnalysisFlow = ai.defineFlow(
         throw new Error("Resume text is missing after attempting to process inputs.");
     }
 
-    const {output} = await prompt({ jobDescriptionText, resumeText, language: input.language });
+    const {output: promptOutput} = await prompt({ jobDescriptionText, resumeText, language: input.language }); // Renamed to avoid conflict
     
-    if (output) {
-        // Save candidate data (fire and forget, don't let it block the response)
-        saveCandidateData({
+    if (promptOutput) {
+        // Save candidate data to MongoDB (fire and forget, don't let it block the response)
+        saveCandidateDataToMongoDB({ // Changed function call
             resumeLanguage: input.language,
             jobDescriptionSource,
             jobOfferIdentifier: jobOfferIdentifier.substring(0, 500), // Truncate long text
             resumeSource,
             resumeIdentifier: resumeIdentifier.substring(0,500), // Truncate long text or use PDF name
-            compatibilityScore: output.compatibilityScore,
+            compatibilityScore: promptOutput.compatibilityScore,
         }).catch(err => {
-            console.error("Error saving candidate data in background:", err);
+            console.error("Error saving candidate data to MongoDB in background:", err);
         });
     }
-    return output!;
+    return promptOutput!;
   }
 );
+
