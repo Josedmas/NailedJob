@@ -135,9 +135,14 @@ const aiResumeBuilderFlow = ai.defineFlow(
         mimeType: input.resumeFileMimeType 
       });
 
-      if (!fileOutput || typeof fileOutput.extractedText !== 'string') {
-        throw new Error('Failed to get a valid response from the PDF text extraction tool.');
-      } else if (fileOutput.extractedText.startsWith('Error extracting text:')) {
+      if (!fileOutput) {
+        throw new Error('PDF text extraction tool returned no output. This may indicate a severe internal error in the tool or that the PDF is unprocessable.');
+      }
+      if (typeof fileOutput.extractedText !== 'string') {
+        throw new Error('PDF text extraction tool returned an invalid output format (extractedText is not a string).');
+      }
+      
+      if (fileOutput.extractedText.startsWith('Error extracting text:')) {
         // This means the tool itself caught an error and reported it
         throw new Error(fileOutput.extractedText);
       } else if (fileOutput.extractedText.trim() === "") {
