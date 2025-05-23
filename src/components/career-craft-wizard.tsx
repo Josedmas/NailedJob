@@ -90,7 +90,9 @@ export default function CareerCraftWizard() {
 
   const resetWizard = () => {
     setCurrentStep(1);
-    setFormState(initialFormState);
+    // Reset form state while preserving the language derived from appLanguage
+    const resumeLang = appLanguage === 'es' ? 'Spanish' : 'English';
+    setFormState({...initialFormState, language: resumeLang});
     setCompatibilityResult(null);
     setTailoredResumeResult(null);
     setJobListingsResult(null);
@@ -129,6 +131,7 @@ export default function CareerCraftWizard() {
             jobOfferUrl: formState.jobOfferUrl || undefined,
             resume: formState.resumeText || undefined,
             resumePdfDataUri: formState.resumePdfDataUri || undefined,
+            language: formState.language, // Pass language to compatibility analysis
         };
         const result = await analyzeCompatibility(input);
         setCompatibilityResult(result);

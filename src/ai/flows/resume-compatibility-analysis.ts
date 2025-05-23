@@ -3,7 +3,7 @@
 /**
  * @fileOverview Analyzes the compatibility between a job description and a resume.
  *
- * - analyzeCompatibility - A function that takes a job description and a resume as input (either as text, URL for job desc, or PDF data URI for resume), and returns a compatibility score and explanation.
+ * - analyzeCompatibility - A function that takes a job description, a resume, and a language as input, and returns a compatibility score and explanation in the specified language.
  * - CompatibilityInput - The input type for the analyzeCompatibility function.
  * - CompatibilityOutput - The return type for the analyzeCompatibility function.
  */
@@ -30,6 +30,9 @@ const CompatibilityInputSchema = z.object({
     .string()
     .optional()
     .describe("The resume as a PDF data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
+  language: z
+    .string()
+    .describe('The language for the explanation, e.g., "English", "Spanish". Must be provided.'),
 }).refine(data => data.jobDescription || data.jobOfferUrl, {
   message: "Either jobDescription text or jobOfferUrl must be provided.",
   path: ["jobDescription"], 
@@ -49,7 +52,7 @@ const CompatibilityOutputSchema = z.object({
   explanation: z
     .string()
     .describe(
-      'A brief explanation of the compatibility score, highlighting the strengths of the resume in relation to the job description.'
+      'A brief explanation of the compatibility score, highlighting the strengths of the resume in relation to the job description, in the specified language.'
     ),
 });
 export type CompatibilityOutput = z.infer<typeof CompatibilityOutputSchema>;
@@ -64,6 +67,7 @@ export async function analyzeCompatibility(
 const ProcessedCompatibilityInputSchema = z.object({
   jobDescriptionText: z.string().describe('The job description text.'),
   resumeText: z.string().describe('The resume text.'),
+  language: z.string().describe('The target language for the explanation, e.g., "English", "Spanish".'),
 });
 
 
@@ -79,7 +83,10 @@ const prompt = ai.definePrompt({
   And the following resume:
   {{resumeText}}
 
+  Language for the output: {{{language}}}
+
   Provide a compatibility score (0-100) and a brief explanation of the score, highlighting the strengths of the resume in relation to the job description.
+  The explanation MUST be in the language specified in the 'Language for the output' field above.
 
   Consider skills, experience, and keywords mentioned in both the job description and the resume.
   The compatibility score must be realistic.
@@ -123,7 +130,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
         throw new Error("Resume text is missing after attempting to process inputs.");
     }
 
-    const {output} = await prompt({ jobDescriptionText, resumeText });
+    const {output} = await prompt({ jobDescriptionText, resumeText, language: input.language });
     return output!;
   }
 );
