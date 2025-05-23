@@ -29,18 +29,18 @@ const CompatibilityInputSchema = z.object({
     .string()
     .optional()
     .describe('The resume as a string. If not provided, resumeFileDataUri will be used.'),
-  resumeFileDataUri: // Renamed from resumePdfDataUri
+  resumeFileDataUri: 
     z.string()
     .optional()
     .describe("The resume PDF file as a data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
-  resumeFileMimeType: // New field
+  resumeFileMimeType: 
     z.string()
     .optional()
-    .refine(val => !val || val === 'application/pdf', { // Allow undefined or ensure it's PDF
+    .refine(val => !val || val === 'application/pdf', { 
         message: "If resumeFileMimeType is provided, it must be 'application/pdf'."
     })
     .describe('The MIME type of the uploaded resume file (must be "application/pdf" if provided). Required if resumeFileDataUri is provided.'),
-  resumeFileName: // Renamed from resumePdfName
+  resumeFileName: 
     z.string()
     .optional()
     .describe("The original name of the uploaded resume PDF file."),
@@ -148,13 +148,21 @@ const compatibilityAnalysisFlow = ai.defineFlow(
         fileDataUri: input.resumeFileDataUri,
         mimeType: input.resumeFileMimeType,
       });
-      if (!fileOutput?.extractedText) throw new Error('Could not extract text from the uploaded resume PDF file.');
-      if (fileOutput.extractedText.startsWith('Error extracting text:')) {
+
+      if (!fileOutput || typeof fileOutput.extractedText !== 'string') {
+        throw new Error('Failed to get a valid response from the PDF text extraction tool.');
+      } else if (fileOutput.extractedText.startsWith('Error extracting text:')) {
+        // This means the tool itself caught an error and reported it
         throw new Error(fileOutput.extractedText);
+      } else if (fileOutput.extractedText.trim() === "") {
+        // This means the tool ran successfully but found no text
+        throw new Error('No text content found in the uploaded PDF. The PDF might be image-based or empty.');
       }
+      
       resumeText = fileOutput.extractedText;
       resumeSource = 'file';
       resumeIdentifier = input.resumeFileName || 'unknown_pdf_file';
+
     } else if (!resumeText && input.resumeFileDataUri && !input.resumeFileMimeType) {
         throw new Error("Resume file MIME type ('application/pdf') is missing, cannot extract text from file.");
     }
