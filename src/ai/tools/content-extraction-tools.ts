@@ -94,7 +94,8 @@ export const extractTextFromPdfTool = ai.defineTool(
       const typedArray = new Uint8Array(pdfBuffer); // pdfjs-dist expects Uint8Array
 
       // Using pdfjs-dist directly
-      const pdfDoc = await getDocument({ data: typedArray }).promise;
+      // Explicitly disable worker to prevent "fake worker" issues in Node.js
+      const pdfDoc = await getDocument({ data: typedArray, worker: null }).promise;
       let fullText = '';
       for (let i = 1; i <= pdfDoc.numPages; i++) {
         const page = await pdfDoc.getPage(i);
@@ -116,3 +117,4 @@ export const extractTextFromPdfTool = ai.defineTool(
     }
   }
 );
+
