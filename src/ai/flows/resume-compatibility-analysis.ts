@@ -29,18 +29,18 @@ const CompatibilityInputSchema = z.object({
     .string()
     .optional()
     .describe('The resume as a string. If not provided, resumeFileDataUri will be used.'),
-  resumeFileDataUri: 
+  resumeFileDataUri:
     z.string()
     .optional()
     .describe("The resume PDF file as a data URI. Used if resume text is not provided. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
-  resumeFileMimeType: 
+  resumeFileMimeType:
     z.string()
     .optional()
-    .refine(val => !val || val === 'application/pdf', { 
+    .refine(val => !val || val === 'application/pdf', {
         message: "If resumeFileMimeType is provided, it must be 'application/pdf'."
     })
     .describe('The MIME type of the uploaded resume file (must be "application/pdf" if provided). Required if resumeFileDataUri is provided.'),
-  resumeFileName: 
+  resumeFileName:
     z.string()
     .optional()
     .describe("The original name of the uploaded resume PDF file."),
@@ -49,7 +49,7 @@ const CompatibilityInputSchema = z.object({
     .describe('The language for the explanation, e.g., "English", "Spanish". Must be provided.'),
 }).refine(data => data.jobDescription || data.jobOfferUrl, {
   message: "Either jobDescription text or jobOfferUrl must be provided.",
-  path: ["jobDescription"], 
+  path: ["jobDescription"],
 }).refine(data => data.resume || data.resumeFileDataUri, {
   message: "Either resume text or resumeFileDataUri must be provided.",
   path: ["resume"],
@@ -126,7 +126,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     let resumeText = input.resume;
     let jobDescriptionSource: 'text' | 'url' = 'text';
     let jobOfferIdentifier = input.jobDescription || '';
-    let resumeSource: 'text' | 'file' = 'text'; 
+    let resumeSource: 'text' | 'file' = 'text';
     let resumeIdentifier = input.resume || '';
 
 
@@ -143,27 +143,27 @@ const compatibilityAnalysisFlow = ai.defineFlow(
       if (input.resumeFileMimeType !== 'application/pdf') {
         throw new Error(`Unsupported resume file type: ${input.resumeFileMimeType}. Only PDF is supported.`);
       }
-      console.log(`Extracting resume text from PDF Data URI.`);
+      console.log(`Extracting resume text from PDF Data URI for compatibility analysis.`);
       const { output: fileOutput } = await extractTextFromFileTool({
         fileDataUri: input.resumeFileDataUri,
         mimeType: input.resumeFileMimeType,
       });
 
       if (!fileOutput) {
-        throw new Error('PDF text extraction tool returned no output. This may indicate a severe internal error in the tool or that the PDF is unprocessable.');
+        throw new Error('The tool responsible for reading the PDF failed to produce a result. The PDF might be unreadable, or an internal system error occurred during processing.');
       }
       if (typeof fileOutput.extractedText !== 'string') {
         throw new Error('PDF text extraction tool returned an invalid output format (extractedText is not a string).');
       }
-      
-      if (fileOutput.extractedText.startsWith('Error extracting text:')) {
+
+      if (fileOutput.extractedText.startsWith('Error extracting text:') || fileOutput.extractedText === "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR") {
         // This means the tool itself caught an error and reported it
         throw new Error(fileOutput.extractedText);
       } else if (fileOutput.extractedText.trim() === "") {
         // This means the tool ran successfully but found no text
         throw new Error('No text content found in the uploaded PDF. The PDF might be image-based or empty.');
       }
-      
+
       resumeText = fileOutput.extractedText;
       resumeSource = 'file';
       resumeIdentifier = input.resumeFileName || 'unknown_pdf_file';
@@ -171,7 +171,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     } else if (!resumeText && input.resumeFileDataUri && !input.resumeFileMimeType) {
         throw new Error("Resume file MIME type ('application/pdf') is missing, cannot extract text from file.");
     }
-    
+
     if (!jobDescriptionText) {
         throw new Error("Job description text is missing after attempting to process inputs.");
     }
@@ -180,7 +180,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     }
 
     const {output: promptOutput} = await prompt({ jobDescriptionText, resumeText, language: input.language });
-    
+
     if (promptOutput) {
         saveCandidateDataToMongoDB({
             resumeLanguage: input.language,
