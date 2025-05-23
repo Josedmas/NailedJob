@@ -151,7 +151,7 @@ export const extractTextFromFileTool = ai.defineTool(
       }
       
       const extractedText = allText.trim();
-      if (extractedText === "" || extractedText.startsWith("[Warning: Page")) { // Also check if only warnings were accumulated
+      if (extractedText === "" || extractedText.startsWith("[Warning: Page") || extractedText.startsWith("[Error: Could not retrieve page")) { 
         console.warn('[extractTextFromFileTool] Successfully processed PDF, but no substantive text content was found (e.g., image-based PDF or empty content).');
         // Return a specific error message that can be caught by the flow
         return { extractedText: "Error extracting text: No text content found in the uploaded PDF. The PDF might be image-based or empty." };
@@ -162,21 +162,14 @@ export const extractTextFromFileTool = ai.defineTool(
 
     } catch (error: unknown) {
       console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing:', error);
-      let simpleErrorMessage = "An unexpected error occurred during PDF processing.";
-      if (error instanceof Error) {
-        simpleErrorMessage = error.message;
-         // Add more specific error details if available
-        if ((error as any).name) simpleErrorMessage += ` (Name: ${(error as any).name})`;
-        if ((error as any).code) simpleErrorMessage += ` (Code: ${(error as any).code})`;
-      } else if (typeof error === 'string') {
-        simpleErrorMessage = error;
-      }
-      // Ensure the returned object always matches the output schema, even in severe error cases.
-      return { extractedText: `Error extracting text: ${simpleErrorMessage}` };
+      // Return a very simple, fixed error string that matches the schema, to maximize chances of it being returned.
+      return { extractedText: "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR" };
     }
   }
 );
     
+    
+
     
 
     
