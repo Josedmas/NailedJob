@@ -4,22 +4,12 @@
  * @fileOverview Tools for extracting text content from URLs and PDF files.
  *
  * - fetchTextFromUrlTool - Fetches and extracts text content from a given URL.
- * - extractTextFromPdfTool - Extracts text content from a PDF data URI.
+ * - extractTextFromPdfTool - Extracts text content from a PDF data URI using pdf-parse.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-// Switch to CommonJS version of legacy build for potentially better server-side worker handling
-// Also import GlobalWorkerOptions to try and disable worker globally
-// Attempt to fix module resolution by removing .js extension
-import { getDocument, GlobalWorkerOptions, type TextItem } from 'pdfjs-dist/legacy/build/pdf';
-
-// Globally disable worker for pdfjs-dist
-// This should prevent attempts to load/setup pdf.worker.js in SSR
-if (GlobalWorkerOptions) {
-  (GlobalWorkerOptions as any).isWorkerDisabled = true;
-}
-
+import pdf from 'pdf-parse';
 
 export const fetchTextFromUrlTool = ai.defineTool(
   {
@@ -39,7 +29,7 @@ export const fetchTextFromUrlTool = ai.defineTool(
         throw new Error(`Failed to fetch URL: ${response.statusText}`);
       }
       // Simple text extraction, might need improvement for complex sites
-      const html = await response.text();
+      let html = await response.text();
       // This is a very basic way to get text. 
       // A more robust solution might involve libraries like Cheerio to parse HTML.
       // For now, we'll try to strip HTML tags naively.
@@ -99,29 +89,19 @@ export const extractTextFromPdfTool = ai.defineTool(
       
       const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
       const pdfBuffer = Buffer.from(base64Data, 'base64');
-      const typedArray = new Uint8Array(pdfBuffer); // pdfjs-dist expects Uint8Array
 
-      // Using pdfjs-dist directly.
-      // The global GlobalWorkerOptions.isWorkerDisabled = true; should handle disabling workers.
-      // The `disableWorker: true` option in getDocument is retained for good measure.
-      const pdfDoc = await getDocument({ data: typedArray, disableWorker: true }).promise;
-      let fullText = '';
-      for (let i = 1; i <= pdfDoc.numPages; i++) {
-        const page = await pdfDoc.getPage(i);
-        const textContent = await page.getTextContent();
-        // textContent.items can contain TextItem or TextMarkedContent.
-        // We are interested in TextItem which has 'str' property.
-        const pageText = textContent.items
-          .map(item => ('str' in item ? (item as TextItem).str : ''))
-          .join(' ');
-        fullText += pageText + (i < pdfDoc.numPages ? '\n' : ''); // Add newline between pages
+      // Using pdf-parse
+      const data = await pdf(pdfBuffer);
+      
+      if (!data || typeof data.text !== 'string') {
+        throw new Error('Failed to extract text using pdf-parse. Unexpected output format.');
       }
       
-      return {text: fullText.trim()};
+      return {text: data.text.trim()};
     } catch (error) {
-      console.error('Error parsing PDF content with pdfjs-dist:', error);
+      console.error('Error parsing PDF content with pdf-parse:', error);
       throw new Error(
-         error instanceof Error ? error.message : 'Failed to process PDF for text extraction using pdfjs-dist.'
+         error instanceof Error ? error.message : 'Failed to process PDF for text extraction using pdf-parse.'
       );
     }
   }
