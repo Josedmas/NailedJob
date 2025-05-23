@@ -10,7 +10,14 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 // Attempt to import the .mjs version for better ESM compatibility
-import { getDocument, type TextItem } from 'pdfjs-dist/legacy/build/pdf.mjs';
+// Also import GlobalWorkerOptions to try and disable worker globally
+import { getDocument, GlobalWorkerOptions, type TextItem } from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+// Globally disable worker for pdfjs-dist
+// This should prevent attempts to load/setup pdf.worker.mjs in SSR
+if (GlobalWorkerOptions) {
+  (GlobalWorkerOptions as any).isWorkerDisabled = true;
+}
 
 
 export const fetchTextFromUrlTool = ai.defineTool(
@@ -93,8 +100,9 @@ export const extractTextFromPdfTool = ai.defineTool(
       const pdfBuffer = Buffer.from(base64Data, 'base64');
       const typedArray = new Uint8Array(pdfBuffer); // pdfjs-dist expects Uint8Array
 
-      // Using pdfjs-dist directly
-      // Explicitly disable worker using disableWorker: true
+      // Using pdfjs-dist directly.
+      // The global GlobalWorkerOptions.isWorkerDisabled = true; should handle disabling workers.
+      // The `disableWorker: true` option in getDocument is retained for good measure.
       const pdfDoc = await getDocument({ data: typedArray, disableWorker: true }).promise;
       let fullText = '';
       for (let i = 1; i <= pdfDoc.numPages; i++) {
