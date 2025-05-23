@@ -4,12 +4,22 @@
  * @fileOverview Tools for extracting text content from URLs and PDF files.
  *
  * - fetchTextFromUrlTool - Fetches and extracts text content from a given URL.
- * - extractTextFromPdfTool - Extracts text content from a PDF data URI using pdf-parse.
+ * - extractTextFromPdfTool - Extracts text content from a PDF data URI using pdfjs-dist.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-// Removed static import: import pdf from 'pdf-parse';
+
+// Import from pdfjs-dist CJS legacy build
+import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type TextItem } from 'pdfjs-dist/legacy/build/pdf.js';
+
+// Globally disable worker for pdfjs-dist.
+// This is crucial for server-side environments like Next.js where workers might not be available or correctly configured.
+// The `as any` is used because the type definitions might not perfectly align with all properties in all contexts.
+if (GlobalWorkerOptions) {
+  (GlobalWorkerOptions as any).isWorkerDisabled = true;
+}
+
 
 export const fetchTextFromUrlTool = ai.defineTool(
   {
@@ -30,14 +40,14 @@ export const fetchTextFromUrlTool = ai.defineTool(
       }
       // Simple text extraction, might need improvement for complex sites
       let html = await response.text();
-      // This is a very basic way to get text. 
+      // This is a very basic way to get text.
       // A more robust solution might involve libraries like Cheerio to parse HTML.
       // For now, we'll try to strip HTML tags naively.
       let text = html.replace(/<style[^>]*>.*<\/style>/gs, ''); // remove style blocks
       text = text.replace(/<script[^>]*>.*<\/script>/gs, ''); // remove script blocks
       text = text.replace(/<[^>]+>/g, ' '); // remove all other tags
       text = text.replace(/\s\s+/g, ' ').trim(); // clean up whitespace
-      
+
       if (!text) {
         // Fallback or more specific extraction if the above is too naive
         // For example, if we know job descriptions are often in <article> or specific divs
@@ -69,7 +79,7 @@ export const fetchTextFromUrlTool = ai.defineTool(
 export const extractTextFromPdfTool = ai.defineTool(
   {
     name: 'extractTextFromPdfTool',
-    description: 'Extracts text content from a PDF provided as a data URI.',
+    description: 'Extracts text content from a PDF provided as a data URI using pdfjs-dist.',
     inputSchema: z.object({
       pdfDataUri: z
         .string()
@@ -83,28 +93,42 @@ export const extractTextFromPdfTool = ai.defineTool(
   },
   async ({pdfDataUri}) => {
     try {
-      // Dynamically import pdf-parse
-      const pdf = (await import('pdf-parse')).default;
-
       if (!pdfDataUri.startsWith('data:application/pdf;base64,')) {
-        throw new Error('Invalid PDF data URI format.');
+        throw new Error('Invalid PDF data URI format. Must start with "data:application/pdf;base64,".');
       }
-      
       const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
       const pdfBuffer = Buffer.from(base64Data, 'base64');
 
-      // Using pdf-parse
-      const data = await pdf(pdfBuffer);
-      
-      if (!data || typeof data.text !== 'string') {
-        throw new Error('Failed to extract text using pdf-parse. Unexpected output format.');
+      // Load the PDF document using pdfjs-dist
+      // Pass disableWorker: true to reinforce that no worker should be used for this specific document.
+      const loadingTask = getDocument({ data: pdfBuffer, disableWorker: true });
+      const pdf: PDFDocumentProxy = await loadingTask.promise;
+
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        // Ensure items are actually TextItems before trying to access .str
+        const pageText = textContent.items
+            .filter((item): item is TextItem => 'str' in item)
+            .map((item: TextItem) => item.str)
+            .join(' ');
+        fullText += pageText + (i < pdf.numPages ? '\n\n' : ''); // Add double newline between pages
       }
-      
-      return {text: data.text.trim()};
+
+      if (!fullText.trim()) {
+        console.warn('pdfjs-dist extracted no text from the PDF.');
+      }
+
+      return {text: fullText.trim()};
     } catch (error) {
-      console.error('Error parsing PDF content with pdf-parse:', error);
+      console.error('Error parsing PDF content with pdfjs-dist:', error);
+      // Check if the error is related to worker setup to provide a more specific message
+      if (error instanceof Error && (error.message.includes('worker') || error.message.includes('Worker'))) {
+           throw new Error('Failed to process PDF: pdfjs-dist worker setup issue. Ensure GlobalWorkerOptions.isWorkerDisabled is true and workers are not expected. Original error: ' + error.message);
+      }
       throw new Error(
-         error instanceof Error ? error.message : 'Failed to process PDF for text extraction using pdf-parse.'
+         error instanceof Error ? error.message : 'Failed to process PDF for text extraction using pdfjs-dist.'
       );
     }
   }
