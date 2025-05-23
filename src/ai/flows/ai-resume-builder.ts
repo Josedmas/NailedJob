@@ -1,5 +1,4 @@
 
-// use server'
 'use server';
 /**
  * @fileOverview Generates a Harvard-style resume tailored to a job description.
