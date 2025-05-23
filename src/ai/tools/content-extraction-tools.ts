@@ -1,5 +1,4 @@
 
-'use server';
 /**
  * @fileOverview Tools for extracting text content from URLs and PDF files.
  *
@@ -11,7 +10,6 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFDocumentProxy, TextItem } from 'pdfjs-dist/types/src/display/api';
-
 
 // Set the worker source for pdfjs-dist.
 // For server-side Node.js, point to the worker file in node_modules directly.
