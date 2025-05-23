@@ -1,3 +1,4 @@
+
 // use server'
 'use server';
 /**
@@ -39,8 +40,7 @@ const AIResumeBuilderInputSchema = z.object({
     ),
   language: z
     .string()
-    .optional()
-    .describe('The language of the job description and resume.'),
+    .describe('The language for the resume and explanation, e.g., "English", "Spanish". Must be provided.'),
 }).refine(data => data.jobDescription || data.jobOfferUrl, {
   message: "Either jobDescription text or jobOfferUrl must be provided.",
   path: ["jobDescription"], 
@@ -68,7 +68,7 @@ const ProcessedAIResumeBuilderInputSchema = z.object({
   jobDescriptionText: z.string().describe('The job description text.'),
   resumeText: z.string().describe('The resume text.'),
   profilePhotoDataUri: z.string().optional(),
-  language: z.string().optional(),
+  language: z.string().describe('The target language for the resume and explanation, e.g., "English", "Spanish".'),
 });
 
 
@@ -78,31 +78,23 @@ const prompt = ai.definePrompt({
   output: {schema: AIResumeBuilderOutputSchema},
   prompt: `You are an expert resume writer, specializing in creating Harvard-style resumes tailored to specific job descriptions.
 
-  Given the following job description and resume, generate a new Harvard-style resume that is tailored to the job description. The resume should highlight the candidate's strengths and qualifications that are most relevant to the job.
-
-  Include an explanation of the modifications made to the resume, focusing on why each change was made to better align the resume with the job description.
+  Your primary task is to generate a new Harvard-style resume based on the provided job description and existing resume. This new resume must highlight the candidate's strengths and qualifications most relevant to the job.
+  Additionally, you must include an explanation of the modifications made to the resume, focusing on why each change was made to better align the resume with the job description.
 
   The resume should include the following sections:
-
-  1. Contact Information:
-  Full name, address, phone number, email address, and links to professional profiles on networks like LinkedIn.
-  2. Profile (Optional):
-  A brief summary of your experience, skills, and professional goals. It is useful to highlight your strengths and how they align with the position you are applying for.
-  3. Work Experience:
-  Reverse Chronological Order: Start with your most recent job and then list the previous ones, including the company name, position, start and end dates, and a brief description of your responsibilities and achievements.
-  Relevant Details: Mention concrete achievements and measurable results, using action verbs to give dynamism to the descriptions.
-  4. Academic Training:
-  Reverse Chronological Order: Start with the highest degree (e.g., Master's) and then the previous degrees (e.g., Bachelor's).
-  Detailed Information: Include the name of the institution, graduation date, and specialty.
-  5. Skills:
-  List of Skills: List your technical and soft skills, such as language proficiency, software knowledge, communication skills, leadership, etc.
-  6. Languages:
-  Level of Proficiency: Indicate the languages you master and your level of proficiency (e.g., native, advanced, intermediate, basic).
+  1. Contact Information: Full name, address, phone number, email address, and links to professional profiles on networks like LinkedIn.
+  2. Profile (Optional): A brief summary of your experience, skills, and professional goals. It is useful to highlight your strengths and how they align with the position you are applying for.
+  3. Work Experience: Reverse Chronological Order: Start with your most recent job and then list the previous ones, including the company name, position, start and end dates, and a brief description of your responsibilities and achievements. Relevant Details: Mention concrete achievements and measurable results, using action verbs to give dynamism to the descriptions.
+  4. Academic Training: Reverse Chronological Order: Start with the highest degree (e.g., Master's) and then the previous degrees (e.g., Bachelor's). Detailed Information: Include the name of the institution, graduation date, and specialty.
+  5. Skills: List of Skills: List your technical and soft skills, such as language proficiency, software knowledge, communication skills, leadership, etc.
+  6. Languages: Level of Proficiency: Indicate the languages you master and your level of proficiency (e.g., native, advanced, intermediate, basic).
 
   Job Description: {{{jobDescriptionText}}}
   Resume: {{{resumeText}}}
-  Profile Photo: {{#if profilePhotoDataUri}}{{media url=profilePhotoDataUri}}{{/if}}
+  {{#if profilePhotoDataUri}}Profile Photo: {{media url=profilePhotoDataUri}}{{/if}}
   Language: {{{language}}}
+
+  **Important Instruction for Language:** You MUST generate the new Harvard-style resume AND the explanation of modifications strictly in the language specified in the 'Language' field above. For example, if 'Language' is 'Spanish', all output related to the resume and its explanation must be in Spanish. Do not default to English if another language is specified.
   `,
 });
 
@@ -142,10 +134,11 @@ const aiResumeBuilderFlow = ai.defineFlow(
         jobDescriptionText,
         resumeText,
         profilePhotoDataUri: input.profilePhotoDataUri,
-        language: input.language
+        language: input.language // input.language is now guaranteed to be a string
     };
 
     const {output} = await prompt(processedInput);
     return output!;
   }
 );
+
