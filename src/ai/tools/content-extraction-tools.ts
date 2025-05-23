@@ -108,12 +108,9 @@ export const extractTextFromPdfTool = ai.defineTool(
       const base64Data = pdfDataUri.substring('data:application/pdf;base64,'.length);
       const pdfBuffer = Buffer.from(base64Data, 'base64');
       
-      // Explicitly set pdf.js version option to potentially avoid internal errors
-      const pdfParseOptions = {
-        version: 'v2.0.550' // Supported versions: 'default', 'v1.10.100', 'v1.9.426', 'v2.0.550'
-      };
-
-      const data = await parser(pdfBuffer, pdfParseOptions); // Use the dynamically imported parser with options
+      // Call parser without options
+      const data = await parser(pdfBuffer); 
+      
       return {text: data.text};
     } catch (error) {
       console.error('Error parsing PDF content:', error);
