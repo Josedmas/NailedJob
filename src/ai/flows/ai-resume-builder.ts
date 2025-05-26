@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { fetchTextFromUrlTool, extractTextFromFileTool } from '@/ai/tools/content-extraction-tools';
+import { fetchTextFromUrlTool, extractTextFromFileTool, type ExtractTextFromFileOutput, type ExtractTextFromFileInput } from '@/ai/tools/content-extraction-tools';
 
 
 const AIResumeBuilderInputSchema = z.object({
@@ -112,7 +112,7 @@ const aiResumeBuilderFlow = ai.defineFlow(
     name: 'aiResumeBuilderFlow',
     inputSchema: AIResumeBuilderInputSchema,
     outputSchema: AIResumeBuilderOutputSchema,
-    tools: [fetchTextFromUrlTool, extractTextFromFileTool],
+    // 'tools' property removed as it's not a standard FlowConfig property here; tools are called directly.
   },
   async (input) => {
     let jobDescriptionText = input.jobDescription;
@@ -120,9 +120,9 @@ const aiResumeBuilderFlow = ai.defineFlow(
 
     if (!jobDescriptionText && input.jobOfferUrl) {
       console.log(`[AIResumeBuilderFlow] Fetching job description from URL: ${input.jobOfferUrl}`);
-      const { output } = await fetchTextFromUrlTool({ url: input.jobOfferUrl });
-      if (!output?.text) throw new Error('Could not extract text from job offer URL.');
-      jobDescriptionText = output.text;
+      const urlOutput = await fetchTextFromUrlTool({ url: input.jobOfferUrl });
+      if (!urlOutput?.text) throw new Error('Could not extract text from job offer URL.');
+      jobDescriptionText = urlOutput.text;
     }
 
     if (!resumeText && input.resumeFileDataUri && input.resumeFileMimeType) {
@@ -130,12 +130,12 @@ const aiResumeBuilderFlow = ai.defineFlow(
         throw new Error(`Unsupported resume file type: ${input.resumeFileMimeType}. Only PDF is supported.`);
       }
       console.log(`[AIResumeBuilderFlow] Extracting resume text from PDF Data URI.`);
-      const { output: fileOutput } = await extractTextFromFileTool({
+      const toolInput: ExtractTextFromFileInput = {
         fileDataUri: input.resumeFileDataUri,
-        mimeType: input.resumeFileMimeType
-      });
-
-      // Log the direct output from the tool for diagnostics
+        mimeType: input.resumeFileMimeType as 'application/pdf' // Cast as it's validated by schema
+      };
+      const fileOutput: ExtractTextFromFileOutput = await extractTextFromFileTool(toolInput);
+      
       console.log('[AIResumeBuilderFlow] Output from extractTextFromFileTool:', JSON.stringify(fileOutput, null, 2));
 
       if (!fileOutput) {
@@ -146,13 +146,10 @@ const aiResumeBuilderFlow = ai.defineFlow(
       }
 
       if (fileOutput.extractedText.startsWith('Error extracting text:') || fileOutput.extractedText === "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR") {
-        // This means the tool itself caught an error and reported it
         throw new Error(fileOutput.extractedText);
       } else if (fileOutput.extractedText.trim() === "") {
-        // This means the tool ran successfully but found no text
         throw new Error('No text content found in the uploaded PDF. The PDF might be image-based or empty.');
       }
-
       resumeText = fileOutput.extractedText;
     } else if (!resumeText && input.resumeFileDataUri && !input.resumeFileMimeType) {
         throw new Error("Resume file MIME type ('application/pdf') is missing, cannot extract text from file.");

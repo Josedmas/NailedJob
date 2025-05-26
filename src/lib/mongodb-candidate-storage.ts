@@ -9,7 +9,7 @@ interface CandidateDataRecord {
   resumeLanguage: string;
   jobDescriptionSource: 'text' | 'url';
   jobOfferIdentifier: string; // Truncated text or URL
-  resumeSource: 'text' | 'file'; // Corrected from 'text' | 'pdf' to 'text' | 'file'
+  resumeSource: 'text' | 'file';
   resumeIdentifier: string; // Truncated text or PDF name
   compatibilityScore?: number;
   // Add other fields as needed
@@ -25,9 +25,20 @@ async function getMongoClient(): Promise<MongoClient> {
   if (!MONGODB_URI) {
     throw new Error('MongoDB URI is not defined in environment variables.');
   }
-  if (client && client.topology && client.topology.isConnected()) {
-    return client;
+  if (client) { // If client is already created, assume it handles its connection state.
+    try {
+      // A lightweight way to check if the client is still connected/usable
+      // by sending a ping. If it fails, we'll nullify the client to recreate.
+      await client.db('admin').command({ ping: 1 });
+      return client;
+    } catch (pingError) {
+      console.warn("MongoDB ping failed, attempting to reconnect.", pingError);
+      await client.close(); // Close the potentially broken client
+      client = null; // Force re-creation
+    }
   }
+
+  console.log("Creating new MongoDB client instance.");
   client = new MongoClient(MONGODB_URI, {
     serverApi: {
       version: ServerApiVersion.v1,
@@ -35,13 +46,13 @@ async function getMongoClient(): Promise<MongoClient> {
       deprecationErrors: true,
     }
   });
+
   try {
     await client.connect();
     console.log("Successfully connected to MongoDB.");
   } catch (error) {
     console.error("Failed to connect to MongoDB", error);
-    // Optionally, you might want to reset the client to null to allow retries
-    // client = null; 
+    client = null; // Ensure client is null if connection fails
     throw error; // Re-throw to indicate connection failure
   }
   return client;
@@ -50,9 +61,8 @@ async function getMongoClient(): Promise<MongoClient> {
 
 export async function saveCandidateDataToMongoDB(data: Omit<CandidateDataRecord, 'timestamp'>): Promise<void> {
   if (!MONGODB_URI || !MONGODB_DB_NAME || !MONGODB_COLLECTION_NAME) {
-    console.error('MongoDB environment variables (MONGODB_URI, MONGODB_DB_NAME, MONGODB_COLLECTION_NAME) are not properly configured.');
-    // In a real app, you might throw an error or have a more robust error handling
-    return; 
+    console.error('MongoDB environment variables (MONGODB_URI, MONGODB_DB_NAME, MONGODB_COLLECTION_NAME) are not properly configured. Data will not be saved.');
+    return;
   }
 
   try {
@@ -70,16 +80,9 @@ export async function saveCandidateDataToMongoDB(data: Omit<CandidateDataRecord,
   } catch (error) {
     console.error('Failed to save candidate data to MongoDB:', error);
     // Do not let storage failure break the main AI flow for the user
-    // In a production app, you might add more sophisticated error handling/logging here
   }
-  // Note: It's generally better to manage client connections (open/close) carefully.
-  // For serverless functions, you might connect once per function invocation or use a global client.
-  // Here, we keep the client connected for subsequent calls in the same instance lifecycle.
-  // await client.close(); // Consider if/when to close the client connection based on your app's lifecycle.
 }
 
-// Optional: A function to gracefully close the MongoDB connection when the app shuts down
-// This is more relevant for long-running server applications than serverless functions.
 export async function closeMongoDBConnection(): Promise<void> {
   if (client) {
     try {
