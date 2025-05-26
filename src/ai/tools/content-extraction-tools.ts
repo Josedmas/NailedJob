@@ -32,8 +32,18 @@ export const fetchTextFromUrlTool = ai.defineTool(
   },
   async ({url}) => {
     try {
-      const response = await fetch(url);
+      console.log(`[fetchTextFromUrlTool] Fetching URL: ${url}`);
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      });
+      console.log(`[fetchTextFromUrlTool] Response status: ${response.status}`);
+
       if (!response.ok) {
+        // Log more details for non-ok responses
+        const errorText = await response.text().catch(() => "Could not retrieve error text from response.");
+        console.error(`[fetchTextFromUrlTool] Failed to fetch URL: ${response.status} ${response.statusText}. Response body: ${errorText.substring(0, 500)}`);
         throw new Error(`Failed to fetch URL: ${response.statusText} (Status: ${response.status})`);
       }
       let html = await response.text();
@@ -59,13 +69,15 @@ export const fetchTextFromUrlTool = ai.defineTool(
         }
       }
       if (!text) {
-        console.warn(`No text could be extracted from URL: ${url}. HTML content might be minimal or heavily JavaScript-driven.`);
+        console.warn(`[fetchTextFromUrlTool] No text could be extracted from URL: ${url}. HTML content might be minimal or heavily JavaScript-driven.`);
       }
+      console.log(`[fetchTextFromUrlTool] Successfully extracted text. Length: ${text.length}`);
       return {text};
-    } catch (error) {
-      console.error('Error fetching or parsing URL content:', error);
+    } catch (error: any) {
+      console.error('[fetchTextFromUrlTool] Error fetching or parsing URL content:', error.message, error.stack);
+      // Ensure the error message passed up matches what the flow expects or can handle
       throw new Error(
-        error instanceof Error ? error.message : 'Failed to process URL for content extraction.'
+        error.message.includes("Failed to fetch URL") ? error.message : `Failed to process URL for content extraction. Detail: ${error.message}`
       );
     }
   }
@@ -94,6 +106,8 @@ export const extractTextFromFileTool = ai.defineTool(
     console.log('[extractTextFromFileTool] Tool invoked.');
     try {
       console.log(`[extractTextFromFileTool] Received fileDataUri with length: ${fileDataUri?.length}`);
+      // Log the first 100 chars of the data URI for format checking, be careful with logging full PII in production
+      // console.log(`[extractTextFromFileTool] Data URI start: ${fileDataUri?.substring(0, 100)}`);
       console.log(`[extractTextFromFileTool] Received mimeType: ${mimeType}`);
 
       console.log('[extractTextFromFileTool] Attempting to parse Data URI for PDF.');
@@ -140,14 +154,20 @@ export const extractTextFromFileTool = ai.defineTool(
       // Iterate over all pages
       for (let i = 1; i <= pdf.numPages; i++) {
         console.log(`[extractTextFromFileTool] Getting page ${i}...`);
-        const page = await pdf.getPage(i);
+        const page = await pdf.getPage(i).catch(pageError => {
+            console.error(`[extractTextFromFileTool] Error getting page ${i}:`, pageError);
+            return null; // Return null if getPage fails
+        });
         if (!page) {
             console.warn(`[extractTextFromFileTool] Could not get page ${i} from PDF.`);
             allText += `\n[Error: Could not retrieve page ${i}]`; // Append error for this page
             continue; // Continue to next page
         }
         console.log(`[extractTextFromFileTool] Page ${i} retrieved. Getting textContent...`);
-        const textContent = await page.getTextContent();
+        const textContent = await page.getTextContent().catch(textContentError => {
+            console.error(`[extractTextFromFileTool] Error getting textContent for page ${i}:`, textContentError);
+            return null; // Return null if getTextContent fails
+        });
 
         if (!textContent || !Array.isArray(textContent.items) || textContent.items.length === 0) {
               console.warn(`[extractTextFromFileTool] No text items found for page ${i}. Possibly image-based PDF or empty page.`);
@@ -173,7 +193,8 @@ export const extractTextFromFileTool = ai.defineTool(
       return { extractedText };
 
     } catch (error: unknown) {
-      let errorMessage = "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR";
+      // This catch block handles errors from PDF processing or any other unexpected error within the tool
+      let errorMessage = "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR"; // Default generic error
       let errorStack = "Stack not available";
 
       if (error instanceof Error) {
@@ -184,7 +205,9 @@ export const extractTextFromFileTool = ai.defineTool(
       } else if (typeof error === 'object' && error !== null) {
         errorMessage = JSON.stringify(error);
       }
+      // Log the detailed error internally for debugging
       console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing:', errorMessage, 'Stack:', errorStack);
+      // Return a structured error message that the flow expects
       return { extractedText: `Error extracting text: ${errorMessage}. Stack: ${errorStack}` };
     }
   }
