@@ -119,7 +119,6 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     name: 'compatibilityAnalysisFlow',
     inputSchema: CompatibilityInputSchema,
     outputSchema: CompatibilityOutputSchema,
-    // Tools are called directly if needed, not listed in flow config unless model uses them
   },
   async (input) => {
     let jobDescriptionText = input.jobDescription;
@@ -146,7 +145,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
       console.log(`[CompatibilityAnalysisFlow] Extracting resume text from PDF Data URI.`);
       const fileOutput: ExtractTextFromFileOutput = await extractTextFromFileTool({
         fileDataUri: input.resumeFileDataUri,
-        mimeType: input.resumeFileMimeType as 'application/pdf',
+        mimeType: input.resumeFileMimeType as 'application/pdf', // Schema ensures this is 'application/pdf'
       });
       
       console.log('[CompatibilityAnalysisFlow] Output from extractTextFromFileTool:', JSON.stringify(fileOutput, null, 2));
@@ -187,8 +186,11 @@ const compatibilityAnalysisFlow = ai.defineFlow(
             jobDescriptionSource,
             jobOfferIdentifier: jobOfferIdentifier.substring(0, 500),
             resumeSource,
-            resumeIdentifier: resumeIdentifier.substring(0,500), // For text resume, this will be the text itself
+            resumeIdentifier: resumeIdentifier.substring(0,500),
             compatibilityScore: promptOutput.compatibilityScore,
+            fullResumeText: resumeText, // Guardar el texto completo del CV
+            fullJobDescriptionText: jobDescriptionText, // Guardar el texto completo de la descripción
+            compatibilityExplanation: promptOutput.explanation, // Guardar la explicación
         };
         console.log('[CompatibilityAnalysisFlow] Attempting to save candidate data to MongoDB:', JSON.stringify(candidateDataToSave, null, 2));
         saveCandidateDataToMongoDB(candidateDataToSave).catch(err => {
@@ -200,4 +202,3 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     return promptOutput!;
   }
 );
-

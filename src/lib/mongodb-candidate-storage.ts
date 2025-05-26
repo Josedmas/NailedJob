@@ -12,6 +12,9 @@ interface CandidateDataRecord {
   resumeSource: 'text' | 'file';
   resumeIdentifier: string; // Truncated text or PDF name
   compatibilityScore?: number;
+  fullResumeText?: string; // Nuevo campo
+  fullJobDescriptionText?: string; // Nuevo campo
+  compatibilityExplanation?: string; // Nuevo campo
   // Add other fields as needed
 }
 
