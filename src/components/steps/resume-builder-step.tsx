@@ -15,13 +15,13 @@ interface ResumeBuilderStepProps {
   result: AIResumeBuilderOutput | null;
   loading: boolean;
   profilePhotoDataUri?: string;
-  resumeLanguage: string; 
+  resumeLanguage: string;
 }
 
 // Helper to safely get translated section title or use a default
 const getSectionTitle = (t: Function, key: string, lang: Locale, fallback: string): string => {
-  const title = t(key, undefined, {lng: lang}); // Use correct i18next options
-  return title === key ? fallback : title; 
+  const title = t(key, undefined, { lng: lang });
+  return title === key ? fallback : title;
 };
 
 export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resumeLanguage }: ResumeBuilderStepProps) {
@@ -64,33 +64,34 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     const pageHeight = doc.internal.pageSize.getHeight();
     
     const margin = 15;
-    const leftColWidthRatio = 0.35; // Percentage of page width for left column
+    const leftColWidthRatio = 0.33; 
     const leftColWidth = pageWidth * leftColWidthRatio;
     const rightColX = leftColWidth + 5; 
     const rightColWidth = pageWidth - rightColX - margin;
 
-    const leftColContentWidth = leftColWidth - margin - margin/2; // Content width for left column
+    const leftColContentWidth = leftColWidth - margin; 
 
-    const lightGrayColor = [240, 240, 240]; 
-    const darkGrayText = [80, 80, 80];
-    const blackText = [0,0,0];
-    const nameColor = blackText;
-    const sectionTitleBG = [220, 220, 220]; // Lighter gray for section titles
-    const sectionTitleText = blackText;
+    const leftColBGColor = [240, 243, 244]; // Very light gray
+    const sectionTitleTextLeftCol = [52, 73, 94]; // Dark blue/gray for left col titles
+    const bodyTextLeftCol = [86, 101, 115]; // Slightly lighter gray for left col body
+
+    const nameColor = [44, 62, 80]; // Dark blue/gray for name
+    const sectionTitleRightCol = [44, 62, 80]; // Dark blue/gray for right col titles
+    const bodyTextRightCol = [52, 73, 94]; // Standard text color for right col
 
 
     let yLeft = margin;
     let yRight = margin;
     let currentPage = 1;
 
-    const addPageIfNeeded = (currentY: number, neededHeight: number = 10, currentColumn: 'left' | 'right') => {
+    const addPageIfNeeded = (currentY: number, neededHeight: number = 10) => {
       if (currentY + neededHeight > pageHeight - margin) {
         doc.addPage();
         currentPage++;
         yLeft = margin;
         yRight = margin;
         // Redraw left column background on new page
-        doc.setFillColor(lightGrayColor[0], lightGrayColor[1], lightGrayColor[2]);
+        doc.setFillColor(leftColBGColor[0], leftColBGColor[1], leftColBGColor[2]);
         doc.rect(0, 0, leftColWidth, pageHeight, 'F');
         return margin; // Reset Y for the current column
       }
@@ -98,7 +99,7 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     };
     
     const drawLeftColumnBackground = () => {
-      doc.setFillColor(lightGrayColor[0], lightGrayColor[1], lightGrayColor[2]);
+      doc.setFillColor(leftColBGColor[0], leftColBGColor[1], leftColBGColor[2]);
       doc.rect(0, 0, leftColWidth, pageHeight, 'F');
     };
     
@@ -110,7 +111,6 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     
     const currentLocale = resumeLanguage.toLowerCase().startsWith('es') ? 'es' : 'en';
     
-    // Define section titles based on currentLocale for parsing
     const sectionTitlesMap: Record<string, string> = {
         CONTACT_INFORMATION: getSectionTitle(t, 'sectionTitle_ContactInformation', currentLocale, currentLocale === 'es' ? 'DETALLES PERSONALES' : 'CONTACT INFORMATION'),
         PROFESSIONAL_PROFILE: getSectionTitle(t, 'sectionTitle_ProfessionalProfile', currentLocale, currentLocale === 'es' ? 'PERFIL PROFESIONAL' : 'PROFESSIONAL PROFILE'),
@@ -123,15 +123,20 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
 
     const sectionContent: Record<string, string[]> = {};
     let currentSectionKey: string | null = null;
-    const allSectionTitles = Object.values(sectionTitlesMap);
 
     for (const line of resumeLines) {
         const trimmedLineUpper = line.trim().toUpperCase();
         let isTitle = false;
         for (const key in sectionTitlesMap) {
-            if (trimmedLineUpper.startsWith(sectionTitlesMap[key].toUpperCase())) {
+            if (trimmedLineUpper.startsWith(sectionTitlesMap[key].toUpperCase()) && 
+                trimmedLineUpper.substring(sectionTitlesMap[key].length).trim().startsWith(':')) {
                 currentSectionKey = key;
                 sectionContent[currentSectionKey] = [];
+                // Remove the title part from the line if it's part of the same line
+                const contentAfterTitle = line.substring(sectionTitlesMap[key].length).replace(/^:\s*/, '').trim();
+                if (contentAfterTitle) {
+                    sectionContent[currentSectionKey].push(contentAfterTitle);
+                }
                 isTitle = true;
                 break;
             }
@@ -142,11 +147,24 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     }
     
     // --- LEFT COLUMN ---
-    // Profile Photo
+    yLeft = addPageIfNeeded(yLeft, 0);
+    // Candidate Name (Left Column)
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(nameColor[0], nameColor[1], nameColor[2]);
+    const nameLines = doc.splitTextToSize(candidateFullName.toUpperCase(), leftColContentWidth - 5); // Slightly less width for name
+    nameLines.forEach((nameLine: string) => {
+        yLeft = addPageIfNeeded(yLeft, 8);
+        doc.text(nameLine, margin / 2 + 2, yLeft);
+        yLeft += 7;
+    });
+    yLeft += 3; // Space after name
+    
+    // Profile Photo (Left Column)
     if (profilePhotoDataUri) {
-        yLeft = addPageIfNeeded(yLeft, 40, 'left');
+        yLeft = addPageIfNeeded(yLeft, 40);
         const photoSize = 35;
-        const photoX = (leftColWidth - photoSize) / 2; // Centered in left column
+        const photoX = (leftColWidth - photoSize) / 2; 
         try {
             const parts = profilePhotoDataUri.split(',');
             if (parts.length === 2) {
@@ -155,7 +173,7 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
                     const imageType = mimeTypePart[1].split('/')[1]?.toUpperCase();
                     if (imageType && (imageType === 'PNG' || imageType === 'JPEG' || imageType === 'JPG')) {
                         doc.addImage(profilePhotoDataUri, imageType, photoX, yLeft, photoSize, photoSize);
-                        yLeft += photoSize + 5;
+                        yLeft += photoSize + 7;
                     } else {
                          console.warn("Unsupported image type for profile photo:", imageType);
                     }
@@ -166,88 +184,71 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
         }
     }
     
-    // Candidate Name - Now in the right column header
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(24);
-    doc.setTextColor(nameColor[0], nameColor[1], nameColor[2]);
-    const nameLines = doc.splitTextToSize(candidateFullName.toUpperCase(), rightColWidth - margin);
-    nameLines.forEach((line: string) => {
-        yRight = addPageIfNeeded(yRight, 10, 'right');
-        doc.text(line, rightColX, yRight);
-        yRight += 9;
-    });
-    yRight += 3; // Space after name
-
     // Contact Information (Left Column)
     const contactInfoContent = sectionContent['CONTACT_INFORMATION'] || [];
     if (contactInfoContent.length > 0) {
-        yLeft = addPageIfNeeded(yLeft, 10, 'left');
+        yLeft = addPageIfNeeded(yLeft, 8);
         doc.setFont('Helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.setTextColor(sectionTitleText[0], sectionTitleText[1], sectionTitleText[2]);
-        doc.setFillColor(sectionTitleBG[0], sectionTitleBG[1], sectionTitleBG[2]);
-        doc.rect(margin / 2, yLeft - 4, leftColContentWidth + margin/2 , 6, 'F'); // Background for title
-        doc.text(sectionTitlesMap['CONTACT_INFORMATION'].toUpperCase(), margin, yLeft);
-        yLeft += 7;
+        doc.setFontSize(11);
+        doc.setTextColor(sectionTitleTextLeftCol[0], sectionTitleTextLeftCol[1], sectionTitleTextLeftCol[2]);
+        doc.text(sectionTitlesMap['CONTACT_INFORMATION'].toUpperCase(), margin/2, yLeft);
+        yLeft += 5;
 
         doc.setFont('Helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(darkGrayText[0], darkGrayText[1], darkGrayText[2]);
+        doc.setFontSize(8.5);
+        doc.setTextColor(bodyTextLeftCol[0], bodyTextLeftCol[1], bodyTextLeftCol[2]);
         contactInfoContent.forEach(line => {
             let label = "";
             let value = line;
+            const lcLine = line.toLowerCase();
 
-            if (line.toLowerCase().includes('@') || line.toLowerCase().match(/(e-?mail)/i)) label = "Email: ";
-            else if (line.match(/\b\d{3}[\s-]?\d{3}[\s-]?\d{3,4}\b/) || line.toLowerCase().match(/(tel(é|e)fono|phone)/i)) label = "Teléfono: ";
-            else if (line.toLowerCase().includes('github') || line.toLowerCase().includes('linkedin')) label = "Web: ";
-            else if (line.match(/\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}/) || line.toLowerCase().match(/(fecha de nacimiento|date of birth)/i)) label = "Nacimiento: ";
-            else if (line.toLowerCase().match(/(calle|street|address|direcci(ó|o)n)/i)) label = "Dirección: ";
+            if (lcLine.includes('@') || lcLine.match(/(e-?mail)/i)) label = "Email: ";
+            else if (lcLine.match(/\b\d{3}[\s-]?\d{3}[\s-]?\d{3,4}\b/) || lcLine.match(/(tel(é|e)fono|phone|móvil|mobile)/i)) label = "Tel: ";
+            else if (lcLine.includes('linkedin.com/') || lcLine.includes('github.com/')) label = "Web: ";
+            else if (lcLine.match(/\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}/) || lcLine.match(/(fecha de nacimiento|date of birth|nacimiento)/i)) label = "Nacimiento: ";
+            else if (lcLine.match(/(calle|street|address|direcci(ó|o)n|ciudad|city|país|country)/i)) label = "Dir: ";
             
-            // Remove common prefixes if label is set, to avoid duplication like "Email: Email: example@..."
             if (label) {
-                const prefixesToRemove = ["email:", "e-mail:", "teléfono:", "telefono:", "phone:", "web:", "dirección:", "direccion:", "address:", "fecha de nacimiento:", "date of birth:"];
-                prefixesToRemove.forEach(prefix => {
+                 const prefixesToRemove = ["email:", "e-mail:", "teléfono:", "telefono:", "phone:", "móvil:", "mobile:", "web:", "dirección:", "direccion:", "address:", "fecha de nacimiento:", "date of birth:", "nacimiento:","dir:"];
+                 prefixesToRemove.forEach(prefix => {
                     if (value.toLowerCase().startsWith(prefix)) {
                         value = value.substring(prefix.length).trim();
                     }
                 });
             }
             
-            const contactLines = doc.splitTextToSize(label + value, leftColContentWidth);
+            const contactLines = doc.splitTextToSize((label ? label : "") + value, leftColContentWidth);
             contactLines.forEach((l:string) => {
-                 yLeft = addPageIfNeeded(yLeft, 5, 'left');
-                 doc.text(l, margin, yLeft);
-                 yLeft += 4; 
+                 yLeft = addPageIfNeeded(yLeft, 4);
+                 doc.text(l, margin/2, yLeft);
+                 yLeft += 3.5; 
             });
         });
         yLeft += 5;
     }
 
-    // Function to draw left column sections
-    const drawLeftSection = (key: string) => {
+    const drawLeftSection = (key: string, titleSize = 11, bodySize = 8.5, bodyLineHeight = 3.5) => {
         const content = sectionContent[key] || [];
         const title = sectionTitlesMap[key];
-        if (content.length > 0 || key === 'PROFESSIONAL_PROFILE') { // Always draw profile title
-            yLeft = addPageIfNeeded(yLeft, 10, 'left');
+        if (content.length > 0 || (key === 'PROFESSIONAL_PROFILE' && content.length === 0 && tailoredResume.toUpperCase().includes(title.toUpperCase()))) {
+            yLeft = addPageIfNeeded(yLeft, 8);
             doc.setFont('Helvetica', 'bold');
-            doc.setFontSize(12);
-            doc.setTextColor(sectionTitleText[0], sectionTitleText[1], sectionTitleText[2]);
-            doc.setFillColor(sectionTitleBG[0], sectionTitleBG[1], sectionTitleBG[2]);
-            doc.rect(margin / 2, yLeft - 4, leftColContentWidth + margin/2 , 6, 'F');
-            doc.text(title.toUpperCase(), margin, yLeft);
-            yLeft += 7;
+            doc.setFontSize(titleSize);
+            doc.setTextColor(sectionTitleTextLeftCol[0], sectionTitleTextLeftCol[1], sectionTitleTextLeftCol[2]);
+            doc.text(title.toUpperCase(), margin/2, yLeft);
+            yLeft += 5;
 
             doc.setFont('Helvetica', 'normal');
-            doc.setFontSize(9);
-            doc.setTextColor(darkGrayText[0], darkGrayText[1], darkGrayText[2]);
+            doc.setFontSize(bodySize);
+            doc.setTextColor(bodyTextLeftCol[0], bodyTextLeftCol[1], bodyTextLeftCol[2]);
             content.forEach(line => {
                 const textLines = doc.splitTextToSize(line, leftColContentWidth);
                 textLines.forEach((l:string) => {
-                    yLeft = addPageIfNeeded(yLeft, 5, 'left');
-                    doc.text(l, margin, yLeft);
-                    yLeft += 4;
+                    yLeft = addPageIfNeeded(yLeft, bodyLineHeight + 0.5);
+                    doc.text(l, margin/2, yLeft);
+                    yLeft += bodyLineHeight;
                 });
-                 if (key === 'LANGUAGES' && line.includes(':')) yLeft += 1; // Extra space for language items
+                 if (key === 'LANGUAGES' && line.includes(':')) yLeft += 1; 
             });
             yLeft += 5;
         }
@@ -262,78 +263,168 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     const drawRightSection = (key: string) => {
         const content = sectionContent[key] || [];
         const title = sectionTitlesMap[key];
+        const allSectionTitlesForParsing = Object.values(sectionTitlesMap);
 
-        if (content.length > 0 || (key === 'WORK_EXPERIENCE' && sectionContent['WORK_EXPERIENCE']) || (key === 'EDUCATION' && sectionContent['EDUCATION']) || (key === 'SKILLS' && sectionContent['SKILLS'])) {
-            yRight = addPageIfNeeded(yRight, 10, 'right');
+
+        if (content.length > 0 || 
+            (key === 'WORK_EXPERIENCE' && tailoredResume.toUpperCase().includes(title.toUpperCase())) ||
+            (key === 'EDUCATION' && tailoredResume.toUpperCase().includes(title.toUpperCase())) ||
+            (key === 'SKILLS' && tailoredResume.toUpperCase().includes(title.toUpperCase()))) {
+            
+            yRight = addPageIfNeeded(yRight, 10);
             doc.setFont('Helvetica', 'bold');
             doc.setFontSize(14);
-            doc.setTextColor(blackText[0], blackText[1], blackText[2]);
+            doc.setTextColor(sectionTitleRightCol[0], sectionTitleRightCol[1], sectionTitleRightCol[2]);
             doc.text(title.toUpperCase(), rightColX, yRight);
-            yRight += 1; // Space for line
+            yRight += 1; 
             
-            doc.setDrawColor(darkGrayText[0], darkGrayText[1], darkGrayText[2]); 
+            doc.setDrawColor(189, 195, 199); // Light gray line
             doc.setLineWidth(0.3);
-            doc.line(rightColX, yRight, rightColX + rightColWidth - margin, yRight); // Use full available width for line
-            yRight += 5;
+            doc.line(rightColX, yRight, rightColX + rightColWidth, yRight); 
+            yRight += 6;
 
 
-            doc.setFont('Helvetica', 'normal');
-            doc.setFontSize(10);
-            doc.setTextColor(darkGrayText[0], darkGrayText[1], darkGrayText[2]);
             let isFirstInSubSection = true; 
 
             for (let i = 0; i < content.length; i++) {
                 let line = content[i];
                 
+                const itemFontSize = 10;
+                const itemLineHeight = 4.5;
+                const dateFontSize = 9;
+                const descriptionFontSize = 9.5;
+                const defaultStyle = 'normal';
+
+                doc.setTextColor(bodyTextRightCol[0], bodyTextRightCol[1], bodyTextRightCol[2]);
+                doc.setFontSize(itemFontSize);
+                doc.setFont('Helvetica', defaultStyle);
+
                 // Heuristic for experience/education item titles
-                const isLikelyTitle = (key === 'WORK_EXPERIENCE' || key === 'EDUCATION') && 
-                                     (line.split(',').length >= 2 || line.split(/ en | at /i).length >=2 || i === 0 || allSectionTitles.some(st => content[i-1]?.toUpperCase().includes(st.toUpperCase())));
-                const isLikelyDateLine = (key === 'WORK_EXPERIENCE' || key === 'EDUCATION') && 
-                                       (line.match(/\d{4}\s*(-|–|to|a)\s*(\d{4}|Present|Actual|Hoy|Actualidad)/i) || line.match(/\b(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic|Jan|Apr|Jul|Aug|Sept|Dec)\b\.?\s\d{4}/i));
+                // An item title is likely if it's the first line after the main section title,
+                // or if the *previous* line was a date or a blank line indicating end of previous description.
+                const isLikelyActualTitle = isFirstInSubSection || 
+                                         (i > 0 && (content[i-1].match(/\d{4}\s*(-|–|to|a)\s*(\d{4}|Present|Actual|Hoy|Actualidad)/i) || content[i-1].trim() === "" || allSectionTitlesForParsing.some(st => content[i-1]?.toUpperCase().includes(st.toUpperCase()) ) ) );
 
-                let lineStyle = 'normal';
-                let fontSize = 10;
-                let lineSpacing = 4.5;
 
-                if (isLikelyTitle && isFirstInSubSection) {
-                    if (i > 0) yRight = addPageIfNeeded(yRight + 2, 5, 'right'); // Add space before new item title
-                    lineStyle = 'bold';
-                    fontSize = 11;
+                const isLikelyDateLine = line.match(/\d{4}\s*(-|–|to|a)\s*(\d{4}|Present|Actual|Hoy|Actualidad)/i) || 
+                                       line.match(/\b(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic|Jan|Apr|Jul|Aug|Sept|Dec)\b\.?\s\d{4}/i);
+
+                if (key === 'WORK_EXPERIENCE' && isLikelyActualTitle && !isLikelyDateLine) {
+                    yRight = addPageIfNeeded(yRight, itemLineHeight + (i > 0 ? 2 : 0) ); 
+
+                    let positionAndCompany = line;
+                    let location = "";
+                    const lastCommaIndex = line.lastIndexOf(',');
+
+                    if (lastCommaIndex > 0 && line.substring(lastCommaIndex + 1).trim().length > 0) {
+                        const textBeforeLastComma = line.substring(0, lastCommaIndex);
+                        if (textBeforeLastComma.includes(',') || line.split(',').length >= 2) { // "Pos, Comp, Loc" or "Pos, Comp" with Loc as third part
+                             positionAndCompany = textBeforeLastComma.trim();
+                             location = line.substring(lastCommaIndex).trim(); // Includes the comma: ", Location"
+                        } else { // Probably "Title at Company, Location" - bold all up to last comma
+                             positionAndCompany = textBeforeLastComma.trim();
+                             location = line.substring(lastCommaIndex).trim();
+                        }
+                    }
+                    // If no suitable last comma, positionAndCompany remains the whole line, location is empty.
+
+                    let currentX = rightColX;
+                    doc.setFont('Helvetica', 'bold');
+                    doc.setFontSize(itemFontSize + 0.5); // Slightly larger for job/company title
+
+                    const boldWrapped = doc.splitTextToSize(positionAndCompany, rightColWidth);
+                    for (let idx = 0; idx < boldWrapped.length; idx++) {
+                        if (idx > 0) { 
+                            yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
+                            currentX = rightColX;
+                        }
+                        doc.text(boldWrapped[idx], currentX, yRight);
+                        currentX += doc.getTextWidth(boldWrapped[idx]); 
+                    }
+
+                    if (location) {
+                        doc.setFont('Helvetica', 'normal');
+                        doc.setFontSize(itemFontSize); 
+                        const spaceForLocation = rightColWidth - (currentX - rightColX);
+
+                        if (currentX === rightColX || spaceForLocation < doc.getTextWidth(" ") + 5 ) { // If bold part wrapped fully or no space left
+                            yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
+                            currentX = rightColX;
+                        }
+                        
+                        const locationTextToPrint = location.startsWith(',') ? location : `, ${location}`;
+                        const locationWrapped = doc.splitTextToSize(locationTextToPrint, rightColWidth - (currentX - rightColX));
+                        for (let idx = 0; idx < locationWrapped.length; idx++) {
+                            if (idx > 0) { 
+                                 yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
+                                 currentX = rightColX;
+                            }
+                             doc.text(locationWrapped[idx], currentX, yRight);
+                             currentX += doc.getTextWidth(locationWrapped[idx]);
+                        }
+                    }
+                    yRight += itemLineHeight;
                     isFirstInSubSection = false;
-                } else if (isLikelyDateLine) {
-                    lineStyle = 'italic';
-                    fontSize = 9;
-                    doc.setTextColor(120,120,120); 
-                } else {
-                     // This means it's a description line or the start of a new item if previous was date
-                     if(key === 'WORK_EXPERIENCE' || key === 'EDUCATION'){
-                        const prevLineWasDate = i > 0 && (content[i-1].match(/\d{4}\s*(-|–|to|a)\s*(\d{4}|Present|Actual|Hoy|Actualidad)/i) || content[i-1].match(/\b(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic|Jan|Apr|Jul|Aug|Sept|Dec)\b\.?\s\d{4}/i));
-                        if(prevLineWasDate) isFirstInSubSection = true; // Reset for next potential title
-                     }
-                }
-                if (key === 'SKILLS' && (line.toLowerCase().startsWith('técnicas:') || line.toLowerCase().startsWith('technical:') || line.toLowerCase().startsWith('habilidades técnicas:'))) {
-                     lineStyle = 'bold';
-                     fontSize = 10.5;
-                     yRight = addPageIfNeeded(yRight + 2, 5, 'right');
-                } else if (key === 'SKILLS' && (line.toLowerCase().startsWith('blandas:') || line.toLowerCase().startsWith('soft:') || line.toLowerCase().startsWith('habilidades blandas:'))) {
-                     lineStyle = 'bold';
-                     fontSize = 10.5;
-                     yRight = addPageIfNeeded(yRight + 2, 5, 'right');
-                }
 
-                doc.setFont('Helvetica', lineStyle);
-                doc.setFontSize(fontSize);
-                const textLines = doc.splitTextToSize(line, rightColWidth - margin);
-                textLines.forEach((l:string) => {
-                    yRight = addPageIfNeeded(yRight, 5, 'right');
-                    doc.text(l, rightColX, yRight);
-                    yRight += lineSpacing;
-                });
-                 doc.setFont('Helvetica', 'normal'); 
-                 doc.setFontSize(10);
-                 doc.setTextColor(darkGrayText[0], darkGrayText[1], darkGrayText[2]); 
+                } else if (key === 'EDUCATION' && isLikelyActualTitle && !isLikelyDateLine) {
+                    yRight = addPageIfNeeded(yRight, itemLineHeight + (i > 0 ? 2 : 0) );
+                    doc.setFont('Helvetica', 'bold');
+                    doc.setFontSize(itemFontSize + 0.5);
+                    const textLines = doc.splitTextToSize(line, rightColWidth);
+                    textLines.forEach((l: string) => {
+                        doc.text(l, rightColX, yRight);
+                        yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
+                    });
+                    if (textLines.length > 0) yRight -= itemLineHeight;
+                    yRight += itemLineHeight;
+                    isFirstInSubSection = false;
+
+                } else if (isLikelyDateLine) {
+                    yRight = addPageIfNeeded(yRight, itemLineHeight);
+                    doc.setFont('Helvetica', 'italic');
+                    doc.setFontSize(dateFontSize);
+                    doc.setTextColor(128, 128, 128); // Gray for dates
+                    const textLines = doc.splitTextToSize(line, rightColWidth);
+                    textLines.forEach((l:string) => {
+                        doc.text(l, rightColX, yRight);
+                        yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
+                    });
+                    if (textLines.length > 0) yRight -= itemLineHeight; // Adjust if new lines were added
+                    yRight += itemLineHeight;
+                    doc.setTextColor(bodyTextRightCol[0], bodyTextRightCol[1], bodyTextRightCol[2]); // Reset color
+                    isFirstInSubSection = false; // After a date, the next line is likely description
+                
+                } else if (key === 'SKILLS' && (line.toLowerCase().startsWith('técnicas:') || line.toLowerCase().startsWith('technical:') || line.toLowerCase().startsWith('habilidades técnicas:'))) {
+                    yRight = addPageIfNeeded(yRight + 2, itemLineHeight);
+                    doc.setFont('Helvetica', 'bold');
+                    doc.setFontSize(itemFontSize);
+                    doc.text(line, rightColX, yRight);
+                    yRight += itemLineHeight;
+                    isFirstInSubSection = false;
+                } else if (key === 'SKILLS' && (line.toLowerCase().startsWith('blandas:') || line.toLowerCase().startsWith('soft:') || line.toLowerCase().startsWith('habilidades blandas:'))) {
+                    yRight = addPageIfNeeded(yRight + 2, itemLineHeight);
+                    doc.setFont('Helvetica', 'bold');
+                    doc.setFontSize(itemFontSize);
+                    doc.text(line, rightColX, yRight);
+                    yRight += itemLineHeight;
+                    isFirstInSubSection = false;
+                }
+                else { // Description or other content
+                    yRight = addPageIfNeeded(yRight, itemLineHeight);
+                    doc.setFont('Helvetica', 'normal');
+                    doc.setFontSize(descriptionFontSize);
+                    const textLines = doc.splitTextToSize(line, rightColWidth);
+                    textLines.forEach((l:string) => {
+                        doc.text(l, rightColX, yRight);
+                        yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
+                    });
+                     if (textLines.length > 0) yRight -= itemLineHeight; 
+                     yRight += itemLineHeight;
+                    // After a description line, the next line could be a new item title.
+                    if (line.trim() !== "") isFirstInSubSection = true; 
+                }
             }
-            yRight += 5;
+            yRight += 5; // Space after section
         }
     };
     
@@ -341,7 +432,7 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     drawRightSection('EDUCATION');
     drawRightSection('SKILLS');
     
-    doc.save('tailored_resume.pdf');
+    doc.save('NailedJob_Resume.pdf');
   };
 
 
