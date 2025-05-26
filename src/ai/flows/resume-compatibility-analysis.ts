@@ -11,7 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { fetchTextFromUrlTool, extractTextFromFileTool } from '@/ai/tools/content-extraction-tools';
+import { fetchTextFromUrlTool, extractTextFromFileTool, type ExtractTextFromFileOutput, type ExtractTextFromFileInput } from '@/ai/tools/content-extraction-tools';
 import { saveCandidateDataToMongoDB } from '@/lib/mongodb-candidate-storage';
 
 
@@ -119,7 +119,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     name: 'compatibilityAnalysisFlow',
     inputSchema: CompatibilityInputSchema,
     outputSchema: CompatibilityOutputSchema,
-    tools: [fetchTextFromUrlTool, extractTextFromFileTool],
+    // Tools are called directly if needed, not listed in flow config unless model uses them
   },
   async (input) => {
     let jobDescriptionText = input.jobDescription;
@@ -132,7 +132,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
 
     if (!jobDescriptionText && input.jobOfferUrl) {
       console.log(`[CompatibilityAnalysisFlow] Fetching job description from URL: ${input.jobOfferUrl}`);
-      const { output: urlOutput } = await fetchTextFromUrlTool({url: input.jobOfferUrl});
+      const urlOutput  = await fetchTextFromUrlTool({url: input.jobOfferUrl});
       if (!urlOutput?.text) throw new Error('Could not extract text from job offer URL.');
       jobDescriptionText = urlOutput.text;
       jobDescriptionSource = 'url';
@@ -144,12 +144,11 @@ const compatibilityAnalysisFlow = ai.defineFlow(
         throw new Error(`Unsupported resume file type: ${input.resumeFileMimeType}. Only PDF is supported.`);
       }
       console.log(`[CompatibilityAnalysisFlow] Extracting resume text from PDF Data URI.`);
-      const { output: fileOutput } = await extractTextFromFileTool({
+      const fileOutput: ExtractTextFromFileOutput = await extractTextFromFileTool({
         fileDataUri: input.resumeFileDataUri,
-        mimeType: input.resumeFileMimeType,
+        mimeType: input.resumeFileMimeType as 'application/pdf',
       });
       
-      // Log the direct output from the tool for diagnostics
       console.log('[CompatibilityAnalysisFlow] Output from extractTextFromFileTool:', JSON.stringify(fileOutput, null, 2));
 
       if (!fileOutput) {
@@ -160,10 +159,8 @@ const compatibilityAnalysisFlow = ai.defineFlow(
       }
 
       if (fileOutput.extractedText.startsWith('Error extracting text:') || fileOutput.extractedText === "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR") {
-        // This means the tool itself caught an error and reported it
         throw new Error(fileOutput.extractedText);
       } else if (fileOutput.extractedText.trim() === "") {
-        // This means the tool ran successfully but found no text
         throw new Error('No text content found in the uploaded PDF. The PDF might be image-based or empty.');
       }
 
@@ -185,17 +182,22 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     const {output: promptOutput} = await prompt({ jobDescriptionText, resumeText, language: input.language });
 
     if (promptOutput) {
-        saveCandidateDataToMongoDB({
+        const candidateDataToSave = {
             resumeLanguage: input.language,
             jobDescriptionSource,
             jobOfferIdentifier: jobOfferIdentifier.substring(0, 500),
             resumeSource,
-            resumeIdentifier: resumeIdentifier.substring(0,500),
+            resumeIdentifier: resumeIdentifier.substring(0,500), // For text resume, this will be the text itself
             compatibilityScore: promptOutput.compatibilityScore,
-        }).catch(err => {
-            console.error("Error saving candidate data to MongoDB in background:", err);
+        };
+        console.log('[CompatibilityAnalysisFlow] Attempting to save candidate data to MongoDB:', JSON.stringify(candidateDataToSave, null, 2));
+        saveCandidateDataToMongoDB(candidateDataToSave).catch(err => {
+            console.error("[CompatibilityAnalysisFlow] Error saving candidate data to MongoDB in background:", err);
         });
+    } else {
+        console.warn('[CompatibilityAnalysisFlow] No promptOutput received, skipping MongoDB save.');
     }
     return promptOutput!;
   }
 );
+
