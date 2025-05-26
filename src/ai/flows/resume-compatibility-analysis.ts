@@ -2,9 +2,11 @@
 'use server';
 
 /**
- * @fileOverview Analyzes the compatibility between a job description and a resume.
+ * @fileOverview Analyzes the compatibility between a job description and a resume,
+ * and extracts structured candidate information.
  *
- * - analyzeCompatibility - A function that takes a job description, a resume, and a language as input, and returns a compatibility score and explanation in the specified language.
+ * - analyzeCompatibility - A function that takes a job description, a resume, and a language as input,
+ *   and returns a compatibility score, explanation, and structured candidate data.
  * - CompatibilityInput - The input type for the analyzeCompatibility function.
  * - CompatibilityOutput - The return type for the analyzeCompatibility function.
  */
@@ -46,7 +48,7 @@ const CompatibilityInputSchema = z.object({
     .describe("The original name of the uploaded resume PDF file."),
   language: z
     .string()
-    .describe('The language for the explanation, e.g., "English", "Spanish". Must be provided.'),
+    .describe('The language for the explanation and structured data extraction, e.g., "English", "Spanish". Must be provided.'),
 }).refine(data => data.jobDescription || data.jobOfferUrl, {
   message: "Either jobDescription text or jobOfferUrl must be provided.",
   path: ["jobDescription"],
@@ -60,9 +62,24 @@ const CompatibilityInputSchema = z.object({
 
 export type CompatibilityInput = z.infer<typeof CompatibilityInputSchema>;
 
+// Schemas for structured data extraction
+const ExperienciaLaboralSchema = z.object({
+  puesto: z.string().optional().describe("Job title/position."),
+  empresa: z.string().optional().describe("Company name."),
+  fechas: z.string().optional().describe("Employment dates (e.g., '2020-Present', 'Jan 2019 - Dec 2020')."),
+  descripcion: z.string().optional().describe("Brief description of responsibilities and achievements.")
+});
+
+const EducacionSchema = z.object({
+  titulo: z.string().optional().describe("Degree or title obtained."),
+  institucion: z.string().optional().describe("Educational institution name."),
+  fechas: z.string().optional().describe("Dates of attendance or graduation (e.g., '2018-2020', 'Graduated May 2018').")
+});
+
 const CompatibilityOutputSchema = z.object({
   compatibilityScore: z
     .number()
+    .min(0).max(100)
     .describe(
       'A percentage (0-100) representing the compatibility between the resume and the job description.'
     ),
@@ -71,6 +88,13 @@ const CompatibilityOutputSchema = z.object({
     .describe(
       'A brief explanation of the compatibility score, highlighting the strengths of the resume in relation to the job description, in the specified language.'
     ),
+  // New structured fields to be extracted by AI
+  nombre: z.string().optional().describe("The candidate's full name as extracted from the resume."),
+  email: z.string().email().optional().describe("The candidate's email address as extracted from the resume."),
+  experienciaLaboral: z.array(ExperienciaLaboralSchema).optional().describe("A list of work experiences extracted from the resume."),
+  educacion: z.array(EducacionSchema).optional().describe("A list of educational qualifications extracted from the resume."),
+  habilidades: z.array(z.string()).optional().describe("A list of skills extracted from the resume."),
+  cvTextoCrudo: z.string().optional().describe("The full raw text of the resume used for extraction, if available.")
 });
 export type CompatibilityOutput = z.infer<typeof CompatibilityOutputSchema>;
 
@@ -83,7 +107,7 @@ export async function analyzeCompatibility(
 const ProcessedCompatibilityInputSchema = z.object({
   jobDescriptionText: z.string().describe('The job description text.'),
   resumeText: z.string().describe('The resume text.'),
-  language: z.string().describe('The target language for the explanation, e.g., "English", "Spanish".'),
+  language: z.string().describe('The target language for the explanation and data extraction, e.g., "English", "Spanish".'),
 });
 
 
@@ -91,27 +115,31 @@ const prompt = ai.definePrompt({
   name: 'resumeCompatibilityPrompt',
   input: {schema: ProcessedCompatibilityInputSchema},
   output: {schema: CompatibilityOutputSchema},
-  prompt: `You are an AI assistant that analyzes the compatibility between a job description and a resume.
+  prompt: `You are an AI assistant that analyzes the compatibility between a job description and a resume, and extracts structured information from the resume.
 
-  Given the following job description:
+  Job Description:
   {{jobDescriptionText}}
 
-  And the following resume:
+  Candidate's Resume:
   {{resumeText}}
 
   Language for the output: {{{language}}}
 
-  Provide a compatibility score (0-100) and a brief explanation of the score, highlighting the strengths of the resume in relation to the job description.
-  The explanation MUST be in the language specified in the 'Language for the output' field above.
+  Tasks:
+  1.  **Compatibility Analysis**: Provide a compatibility score (0-100) and a brief explanation of the score. The explanation should highlight the resume's strengths relative to the job description and MUST be in the specified 'Language for the output'.
+  2.  **Structured Information Extraction from Resume**: From the 'Candidate's Resume' text, extract the following information. If a field is not explicitly found, omit it or leave it as an empty string/array where appropriate.
+      *   'nombre': The candidate's full name.
+      *   'email': The candidate's email address.
+      *   'experienciaLaboral': An array of work experiences. Each item should be an object with 'puesto', 'empresa', 'fechas', and 'descripcion'.
+      *   'educacion': An array of educational qualifications. Each item should be an object with 'titulo', 'institucion', and 'fechas'.
+      *   'habilidades': An array of strings listing the candidate's skills.
+      *   'cvTextoCrudo': Include the full 'Candidate's Resume' text here.
 
-  Consider skills, experience, and keywords mentioned in both the job description and the resume.
   The compatibility score must be realistic.
+  All textual output, including the explanation and any extracted text within the structured fields (like descriptions in experienciaLaboral), MUST be in the language specified in the 'Language for the output' field.
 
-  Output in JSON format:
-  {
-    "compatibilityScore": number,
-    "explanation": string
-  }`,
+  Output the entire response as a single JSON object adhering to the defined output schema.
+  `,
 });
 
 const compatibilityAnalysisFlow = ai.defineFlow(
@@ -123,18 +151,20 @@ const compatibilityAnalysisFlow = ai.defineFlow(
   async (input) => {
     let jobDescriptionText = input.jobDescription;
     let resumeText = input.resume;
-    let jobDescriptionSource: 'text' | 'url' = 'text';
-    let jobOfferIdentifier = input.jobDescription || '';
-    let resumeSource: 'text' | 'file' = 'text';
-    let resumeIdentifier = input.resume || '';
+    let jobDescriptionSource: 'text' | 'url' = input.jobDescription ? 'text' : 'url';
+    let jobOfferIdentifier = input.jobDescription || input.jobOfferUrl || 'unknown_job_offer';
+    let resumeSource: 'text' | 'file' = input.resume ? 'text' : 'file';
+    let resumeIdentifier = input.resume || input.resumeFileName || 'unknown_resume';
 
 
     if (!jobDescriptionText && input.jobOfferUrl) {
       console.log(`[CompatibilityAnalysisFlow] Fetching job description from URL: ${input.jobOfferUrl}`);
       const urlOutput  = await fetchTextFromUrlTool({url: input.jobOfferUrl});
-      if (!urlOutput?.text) throw new Error('Could not extract text from job offer URL.');
+      if (!urlOutput?.text) {
+        console.error('[CompatibilityAnalysisFlow] fetchTextFromUrlTool returned no text.');
+        throw new Error('Could not extract text from job offer URL.');
+      }
       jobDescriptionText = urlOutput.text;
-      jobDescriptionSource = 'url';
       jobOfferIdentifier = input.jobOfferUrl;
     }
 
@@ -145,7 +175,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
       console.log(`[CompatibilityAnalysisFlow] Extracting resume text from PDF Data URI.`);
       const fileOutput: ExtractTextFromFileOutput = await extractTextFromFileTool({
         fileDataUri: input.resumeFileDataUri,
-        mimeType: input.resumeFileMimeType as 'application/pdf', // Schema ensures this is 'application/pdf'
+        mimeType: input.resumeFileMimeType,
       });
       
       console.log('[CompatibilityAnalysisFlow] Output from extractTextFromFileTool:', JSON.stringify(fileOutput, null, 2));
@@ -162,11 +192,8 @@ const compatibilityAnalysisFlow = ai.defineFlow(
       } else if (fileOutput.extractedText.trim() === "") {
         throw new Error('No text content found in the uploaded PDF. The PDF might be image-based or empty.');
       }
-
       resumeText = fileOutput.extractedText;
-      resumeSource = 'file';
-      resumeIdentifier = input.resumeFileName || 'unknown_pdf_file';
-
+      resumeIdentifier = input.resumeFileName || 'uploaded_pdf_file';
     } else if (!resumeText && input.resumeFileDataUri && !input.resumeFileMimeType) {
         throw new Error("Resume file MIME type ('application/pdf') is missing, cannot extract text from file.");
     }
@@ -181,23 +208,29 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     const {output: promptOutput} = await prompt({ jobDescriptionText, resumeText, language: input.language });
 
     if (promptOutput) {
+        console.log('[CompatibilityAnalysisFlow] Attempting to save candidate data to MongoDB. Prompt output received:', JSON.stringify(promptOutput, null, 2).substring(0, 500) + "...");
         const candidateDataToSave = {
-            resumeLanguage: input.language,
             jobDescriptionSource,
             jobOfferIdentifier: jobOfferIdentifier.substring(0, 500),
             resumeSource,
             resumeIdentifier: resumeIdentifier.substring(0,500),
             compatibilityScore: promptOutput.compatibilityScore,
-            fullResumeText: resumeText, // Guardar el texto completo del CV
-            fullJobDescriptionText: jobDescriptionText, // Guardar el texto completo de la descripción
-            compatibilityExplanation: promptOutput.explanation, // Guardar la explicación
+            compatibilityExplanation: promptOutput.explanation,
+            nombre: promptOutput.nombre,
+            email: promptOutput.email,
+            experienciaLaboral: promptOutput.experienciaLaboral,
+            educacion: promptOutput.educacion,
+            habilidades: promptOutput.habilidades,
+            cvTextoCrudo: resumeText, // Using the processed resumeText as cvTextoCrudo
+            fullJobDescriptionText: jobDescriptionText,
+            resumeLanguage: input.language,
         };
-        console.log('[CompatibilityAnalysisFlow] Attempting to save candidate data to MongoDB:', JSON.stringify(candidateDataToSave, null, 2));
         saveCandidateDataToMongoDB(candidateDataToSave).catch(err => {
             console.error("[CompatibilityAnalysisFlow] Error saving candidate data to MongoDB in background:", err);
         });
     } else {
-        console.warn('[CompatibilityAnalysisFlow] No promptOutput received, skipping MongoDB save.');
+        console.warn('[CompatibilityAnalysisFlow] No promptOutput received from AI, skipping MongoDB save.');
+        throw new Error("AI failed to produce an output for compatibility analysis and data extraction.");
     }
     return promptOutput!;
   }

@@ -4,18 +4,41 @@
 
 import { MongoClient, ServerApiVersion, type Document } from 'mongodb';
 
+// Define interfaces for nested structures
+interface ExperienciaLaboral {
+  puesto?: string;
+  empresa?: string;
+  fechas?: string;
+  descripcion?: string;
+}
+
+interface Educacion {
+  titulo?: string;
+  institucion?: string;
+  fechas?: string;
+}
+
+// Updated CandidateDataRecord interface
 interface CandidateDataRecord {
   timestamp: string;
-  resumeLanguage: string;
   jobDescriptionSource: 'text' | 'url';
-  jobOfferIdentifier: string; // Truncated text or URL
+  jobOfferIdentifier: string;
   resumeSource: 'text' | 'file';
-  resumeIdentifier: string; // Truncated text or PDF name
+  resumeIdentifier: string;
   compatibilityScore?: number;
-  fullResumeText?: string; // Nuevo campo
-  fullJobDescriptionText?: string; // Nuevo campo
-  compatibilityExplanation?: string; // Nuevo campo
-  // Add other fields as needed
+  compatibilityExplanation?: string;
+  
+  // New structured fields from candidate's CV
+  nombre?: string;
+  email?: string;
+  experienciaLaboral?: ExperienciaLaboral[];
+  educacion?: Educacion[];
+  habilidades?: string[];
+  cvTextoCrudo?: string; // Raw text of the CV
+  
+  // Retained for context if needed, or could be part of jobOfferIdentifier
+  fullJobDescriptionText?: string; 
+  resumeLanguage?: string; // Language of the resume provided by user
 }
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -31,8 +54,6 @@ async function getMongoClient(): Promise<MongoClient> {
   }
   if (client) {
     try {
-      // A lightweight way to check if the client is still connected/usable
-      // by sending a ping. If it fails, we'll nullify the client to recreate.
       await client.db('admin').command({ ping: 1 });
       console.log("Reusing existing MongoDB client connection.");
       return client;
@@ -47,20 +68,19 @@ async function getMongoClient(): Promise<MongoClient> {
     }
   }
 
-  console.log(`Creating new MongoDB client instance for URI: ${MONGODB_URI.substring(0, MONGODB_URI.indexOf('@') > 0 ? MONGODB_URI.indexOf('@') : MONGODB_URI.length)}...`); // Log URI without credentials
+  console.log(`Creating new MongoDB client instance for URI: ${MONGODB_URI.substring(0, MONGODB_URI.indexOf('@') > 0 ? MONGODB_URI.indexOf('@') : MONGODB_URI.length)}...`);
   client = new MongoClient(MONGODB_URI, {
     serverApi: {
       version: ServerApiVersion.v1,
       strict: true,
       deprecationErrors: true,
     },
-    tls: true, // Explicitly enable TLS
+    tls: true,
   });
 
   try {
     await client.connect();
     console.log("Successfully connected to MongoDB.");
-    // Optional: Ping the database to confirm connection after connect()
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } catch (error) {
@@ -72,8 +92,8 @@ async function getMongoClient(): Promise<MongoClient> {
         console.error("Error closing MongoDB client after connection failure:", closeError);
       }
     }
-    client = null; // Ensure client is null if connection fails
-    throw error; // Re-throw to indicate connection failure
+    client = null;
+    throw error;
   }
   return client;
 }
@@ -99,7 +119,6 @@ export async function saveCandidateDataToMongoDB(data: Omit<CandidateDataRecord,
     console.log(`Candidate data saved to MongoDB with ID: ${result.insertedId} in collection ${MONGODB_COLLECTION_NAME} of database ${MONGODB_DB_NAME}`);
   } catch (error) {
     console.error('Failed to save candidate data to MongoDB:', error);
-    // Do not let storage failure break the main AI flow for the user
   }
 }
 
