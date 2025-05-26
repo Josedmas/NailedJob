@@ -150,22 +150,24 @@ const aiResumeBuilderFlow = ai.defineFlow(
         throw new Error(`Unsupported resume file type: ${input.resumeFileMimeType}. Only PDF is supported.`);
       }
       console.log(`[AIResumeBuilderFlow] Extracting resume text from PDF Data URI.`);
-      const toolInput: ExtractTextFromFileInput = {
+      const fileOutput: ExtractTextFromFileOutput = await extractTextFromFileTool({
         fileDataUri: input.resumeFileDataUri,
         mimeType: input.resumeFileMimeType as 'application/pdf' 
-      };
-      const fileOutput: ExtractTextFromFileOutput = await extractTextFromFileTool(toolInput);
+      });
       
       console.log('[AIResumeBuilderFlow] Output from extractTextFromFileTool:', JSON.stringify(fileOutput, null, 2));
 
       if (!fileOutput) {
-        throw new Error('The tool responsible for reading the PDF failed to produce a result. The PDF might be unreadable, or an internal system error occurred during processing.');
+        throw new Error('PDF Extraction Tool Error: The tool failed to return any output. This often indicates a severe issue with the PDF file itself (e.g., corruption, very complex structure) or a low-level crash in the PDF processing library. Please check server logs for detailed error messages from the PDF library, and try a different PDF file if possible.');
       }
       if (typeof fileOutput.extractedText !== 'string') {
         throw new Error('PDF text extraction tool returned an invalid output format (extractedText is not a string).');
       }
 
-      if (fileOutput.extractedText.startsWith('Error extracting text:') || fileOutput.extractedText === "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR") {
+      if (fileOutput.extractedText === "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR_SEE_SERVER_LOGS") {
+         // This means the tool caught a critical internal error.
+        throw new Error("An internal error occurred while processing the PDF. Please check server logs for details or try a different PDF file.");
+      } else if (fileOutput.extractedText.startsWith('Error extracting text:')) {
         throw new Error(fileOutput.extractedText);
       } else if (fileOutput.extractedText.trim() === "") {
         throw new Error('No text content found in the uploaded PDF. The PDF might be image-based or empty.');
