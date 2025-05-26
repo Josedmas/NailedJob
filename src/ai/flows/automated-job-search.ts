@@ -58,7 +58,7 @@ The target job portals for the search are "InfoJobs", "LinkedIn", and "Indeed".
 Aim to find up to 10 job postings that appear to be distinct based on their (simulated) details.
 The job postings should ideally be less than 30 days old (the tool will simulate this).
 
-Return the list of found job postings as provided by the tool.
+Return the list of found job postings. IMPORTANT: For each job posting in the result, the 'link' field MUST be the exact search results page URL that the 'findJobsTool' provides. Do NOT attempt to create or modify this link.
 `,
 });
 
