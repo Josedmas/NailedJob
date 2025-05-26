@@ -90,7 +90,7 @@ const CompatibilityOutputSchema = z.object({
     ),
   // New structured fields to be extracted by AI
   nombre: z.string().optional().describe("The candidate's full name as extracted from the resume."),
-  email: z.string().email().optional().describe("The candidate's email address as extracted from the resume."),
+  email: z.string().optional().describe("The candidate's email address as extracted from the resume."), // Removed .email()
   experienciaLaboral: z.array(ExperienciaLaboralSchema).optional().describe("A list of work experiences extracted from the resume."),
   educacion: z.array(EducacionSchema).optional().describe("A list of educational qualifications extracted from the resume."),
   habilidades: z.array(z.string()).optional().describe("A list of skills extracted from the resume."),
@@ -222,7 +222,8 @@ const compatibilityAnalysisFlow = ai.defineFlow(
             educacion: promptOutput.educacion,
             habilidades: promptOutput.habilidades,
             cvTextoCrudo: resumeText, // Using the processed resumeText as cvTextoCrudo
-            fullJobDescriptionText: jobDescriptionText,
+            fullJobDescriptionText: jobDescriptionText, // Storing full job description text
+            fullResumeText: resumeText, // Storing full resume text as initially processed
             resumeLanguage: input.language,
         };
         saveCandidateDataToMongoDB(candidateDataToSave).catch(err => {
