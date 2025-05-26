@@ -43,13 +43,6 @@ const initialFormState: CareerCraftFormState = {
   language: 'English',
 };
 
-// Define the color palette for PDF resume themes
-const resumeColorThemes = [
-  { r: 192, g: 57, b: 43, name: 'Red' },    // Alizarin Red
-  { r: 39, g: 174, b: 96, name: 'Green' },  // Emerald Green
-  { r: 142, g: 68, b: 173, name: 'Purple' } // Wisteria Purple
-];
-
 export default function CareerCraftWizard() {
   const { t, language: appLanguage } = useLanguage();
   const [currentStep, setCurrentStep] = useState(1);
@@ -58,7 +51,6 @@ export default function CareerCraftWizard() {
   const [tailoredResumeResult, setTailoredResumeResult] = useState<AIResumeBuilderOutput | null>(null);
   const [jobListingsResult, setJobListingsResult] = useState<AutomatedJobSearchOutput | null>(null);
   const [loading, setLoading] = useState(false);
-  const [currentColorThemeIndex, setCurrentColorThemeIndex] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -106,7 +98,6 @@ export default function CareerCraftWizard() {
     setCompatibilityResult(null);
     setTailoredResumeResult(null);
     setJobListingsResult(null);
-    setCurrentColorThemeIndex(0); // Reset color theme index
     setLoading(false);
   };
 
@@ -136,7 +127,12 @@ export default function CareerCraftWizard() {
         });
         return;
       }
-       if (formState.resumeFileDataUri && (!formState.resumeFileMimeType || formState.resumeFileMimeType !== 'application/pdf')) {
+       let effectiveResumeMimeType = formState.resumeFileMimeType;
+       if (formState.resumeFileDataUri && !formState.resumeFileMimeType) {
+           effectiveResumeMimeType = 'application/pdf'; // Default if URI is present but mime type is missing
+       }
+
+       if (formState.resumeFileDataUri && effectiveResumeMimeType !== 'application/pdf') {
         toast({
           variant: "destructive",
           title: t('fileErrorTitle') || "File Error",
@@ -151,7 +147,6 @@ export default function CareerCraftWizard() {
             resume: formState.resumeText || undefined,
             resumeFileDataUri: formState.resumeFileDataUri || undefined,
             resumeFileName: formState.resumeFileName || undefined,
-            // Ensure mimeType is 'application/pdf' if URI is present, otherwise undefined
             resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined,
             language: formState.language,
         };
@@ -160,7 +155,11 @@ export default function CareerCraftWizard() {
         setCurrentStep(2);
       });
     } else if (currentStep === 2) {
-      if (formState.resumeFileDataUri && (!formState.resumeFileMimeType || formState.resumeFileMimeType !== 'application/pdf')) {
+      let effectiveResumeMimeType = formState.resumeFileMimeType;
+      if (formState.resumeFileDataUri && !formState.resumeFileMimeType) {
+          effectiveResumeMimeType = 'application/pdf';
+      }
+      if (formState.resumeFileDataUri && effectiveResumeMimeType !== 'application/pdf') {
          toast({
           variant: "destructive",
           title: t('fileErrorTitle') || "File Error",
@@ -168,8 +167,6 @@ export default function CareerCraftWizard() {
         });
         return;
       }
-      // Cycle to the next color theme for the resume
-      setCurrentColorThemeIndex(prevIndex => (prevIndex + 1) % resumeColorThemes.length);
       await callAI(async () => {
         const input: AIResumeBuilderInput = {
           jobDescription: formState.jobOfferText || undefined,
@@ -209,7 +206,6 @@ export default function CareerCraftWizard() {
   };
 
   const renderStep = () => {
-    const selectedAccentColor = resumeColorThemes[currentColorThemeIndex];
     switch (currentStep) {
       case 1:
         return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} />;
@@ -221,7 +217,6 @@ export default function CareerCraftWizard() {
                   loading={loading} 
                   profilePhotoDataUri={formState.profilePhotoDataUri} 
                   resumeLanguage={formState.language}
-                  accentColor={selectedAccentColor} 
                 />;
       case 4:
         return <JobSearchStep result={jobListingsResult} loading={loading} />;

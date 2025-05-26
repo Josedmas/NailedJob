@@ -72,7 +72,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     tailoredResumeContentTitle: "Tailored Resume Content (Raw Text):",
     downloadAsTextButton: "Download as Text",
     downloadAsPdfButton: "Download as PDF",
-    pdfDownloadNote: "The PDF version attempts to match the modern resume style.",
+    pdfDownloadNote: "The PDF version attempts to match a professional resume style.",
     explanationOfModificationsTitle: "Explanation of Modifications:",
     happyWithResumePrompt: "Happy with your new resume? Click \"Find Jobs\" to discover opportunities matching this CV.",
     // CompatibilityAnalysisStep
@@ -105,20 +105,21 @@ export const translations: Record<Locale, Record<string, string>> = {
     loadingMessageDefault: "Processing...",
     loadingAiMagic: "Please wait, AI is working its magic!",
     // Resume Section Titles (for PDF parsing and generation)
-    sectionTitle_ContactInformation: "Contact Information",
-    sectionTitle_Profile: "Profile",
-    sectionTitle_WorkExperience: "Work Experience",
-    sectionTitle_AcademicTraining: "Academic Training",
-    sectionTitle_Skills: "Skills",
-    sectionTitle_Languages: "Languages",
-    sectionTitle_Projects: "Projects",
-    sectionTitle_PersonalDetails_es: "Detalles personales", 
-    sectionTitle_Profile_es: "Perfil",
-    sectionTitle_WorkExperience_es: "Experiencia Laboral",
-    sectionTitle_AcademicTraining_es: "Formación Académica",
-    sectionTitle_Skills_es: "Habilidades",
-    sectionTitle_Languages_es: "Idiomas",
-    sectionTitle_Projects_es: "Proyectos",
+    sectionTitle_ContactInformation: "CONTACT INFORMATION",
+    sectionTitle_ProfessionalProfile: "PROFESSIONAL PROFILE",
+    sectionTitle_WorkExperience: "WORK EXPERIENCE",
+    sectionTitle_Education: "EDUCATION", // Changed from AcademicTraining for consistency with new prompt
+    sectionTitle_Skills: "SKILLS",
+    sectionTitle_Languages: "LANGUAGES",
+    sectionTitle_Interests: "INTERESTS",
+    // Spanish translations for new/updated section titles
+    sectionTitle_ContactInformation_es: "DETALLES PERSONALES",
+    sectionTitle_ProfessionalProfile_es: "PERFIL PROFESIONAL",
+    sectionTitle_WorkExperience_es: "EXPERIENCIA LABORAL",
+    sectionTitle_Education_es: "FORMACIÓN", // Changed from Formación Académica
+    sectionTitle_Skills_es: "HABILIDADES",
+    sectionTitle_Languages_es: "IDIOMAS",
+    sectionTitle_Interests_es: "INTERESES",
   },
   es: {
     // AppHeader
@@ -189,9 +190,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     tailoredResumeContentTitle: "Contenido del Currículum Personalizado (Texto sin formato):",
     downloadAsTextButton: "Descargar como Texto",
     downloadAsPdfButton: "Descargar como PDF",
-    pdfDownloadNote: "La versión PDF intenta asemejarse al estilo de currículum moderno.",
+    pdfDownloadNote: "La versión PDF intenta asemejarse a un estilo de currículum profesional.",
     explanationOfModificationsTitle: "Explicación de las Modificaciones:",
-    happyWithResumePrompt: "¿Contento con tu nuevo currículum? Haz clic en \"Buscar Empleos\" para descubrir oportunidades que coincidan con este CV.",
+    happyWithResumePrompt: "Contento con tu nuevo currículum? Haz clic en \"Buscar Empleos\" para descubrir oportunidades que coincidan con este CV.",
     // CompatibilityAnalysisStep
     analyzingCompatibilityMessage: "Analizando compatibilidad...",
     waitingForAnalysisTitle: "Esperando Análisis",
@@ -205,9 +206,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     adviceModerateTitle: "Compatibilidad Moderada",
     adviceModerateMessage: "Tu currículum muestra una compatibilidad moderada (60-70%). Existe el riesgo de que sea pasado por alto en comparación con candidatos más alineados. Concéntrate en reescribir las secciones donde tus habilidades y experiencia no coinciden perfectamente con los requisitos del trabajo, enfatizando las habilidades transferibles y los logros relevantes.",
     adviceGoodTitle: "Buena Compatibilidad",
-    adviceGoodMessage: "¡Tienes un buen nivel de compatibilidad (70-80%)! Es probable que tu currículum sea revisado. Considera ajustar tu currículum para mejorar aún más su alineación con la descripción del trabajo, asegurándote de que tus fortalezas clave sean prominentes.",
+    adviceGoodMessage: "Tienes un buen nivel de compatibilidad (70-80%)! Es probable que tu currículum sea revisado. Considera ajustar tu currículum para mejorar aún más su alineación con la descripción del trabajo, asegurándote de que tus fortalezas clave sean prominentes.",
     adviceExcellentTitle: "Excelente Compatibilidad",
-    adviceExcellentMessage: "¡Excelente coincidencia (más del 80%)! Tu perfil está altamente alineado con las necesidades de la empresa. Revisa si hay mejoras menores en la redacción o claridad para hacer tu CV aún más convincente. La IA ahora te ayudará a crear un currículum optimizado.",
+    adviceExcellentMessage: "Excelente coincidencia (más del 80%)! Tu perfil está altamente alineado con las necesidades de la empresa. Revisa si hay mejoras menores en la redacción o claridad para hacer tu CV aún más convincente. La IA ahora te ayudará a crear un currículum optimizado.",
     readyToImprovePrompt: "¿Listo para mejorar? Haz clic en \"Crear Currículum\" para que nuestra IA adapte tu CV para este trabajo específico.",
     // JobSearchStep
     searchingJobsMessage: "Buscando oportunidades de trabajo relevantes...",
@@ -222,25 +223,18 @@ export const translations: Record<Locale, Record<string, string>> = {
     loadingMessageDefault: "Procesando...",
     loadingAiMagic: "Por favor espera, ¡la IA está haciendo su magia!",
     // Resume Section Titles (for PDF parsing and generation)
-    sectionTitle_ContactInformation: "Detalles personales",
-    sectionTitle_Profile: "Perfil",
-    sectionTitle_WorkExperience: "Experiencia Laboral",
-    sectionTitle_AcademicTraining: "Formación Académica",
-    sectionTitle_Skills: "Habilidades",
-    sectionTitle_Languages: "Idiomas",
-    sectionTitle_Projects: "Proyectos",
-    sectionTitle_PersonalDetails_es: "Detalles personales",
-    sectionTitle_Profile_es: "Perfil",
-    sectionTitle_WorkExperience_es: "Experiencia Laboral",
-    sectionTitle_AcademicTraining_es: "Formación Académica",
-    sectionTitle_Skills_es: "Habilidades",
-    sectionTitle_Languages_es: "Idiomas",
-    sectionTitle_Projects_es: "Proyectos",
+    sectionTitle_ContactInformation: "DETALLES PERSONALES",
+    sectionTitle_ProfessionalProfile: "PERFIL PROFESIONAL",
+    sectionTitle_WorkExperience: "EXPERIENCIA LABORAL",
+    sectionTitle_Education: "FORMACIÓN", // Changed from Formación Académica
+    sectionTitle_Skills: "HABILIDADES",
+    sectionTitle_Languages: "IDIOMAS",
+    sectionTitle_Interests: "INTERESES",
   },
 };
 
 export const getTranslation = (locale: Locale, key: string, params?: Record<string, string | number>): string => {
-  let text = translations[locale]?.[key] || translations['en']?.[key] || key; 
+  let text = translations[locale]?.[key] || translations['en']?.[key] || key;
   if (params) {
     Object.keys(params).forEach(paramKey => {
       text = text.replace(`{${paramKey}}`, String(params[paramKey]));
