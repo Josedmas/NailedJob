@@ -84,9 +84,11 @@ const prompt = ai.definePrompt({
   name: 'aiResumeBuilderPrompt',
   input: {schema: ProcessedAIResumeBuilderInputSchema},
   output: {schema: AIResumeBuilderOutputSchema},
-  prompt: `You are an expert resume writer, specializing in creating professional resumes tailored to specific job descriptions.
+  prompt: `You are an expert resume writer, specializing in creating professional resumes tailored to specific job descriptions, following a clear two-column layout.
 
   Your primary task is to generate a new resume based on the provided job description and existing resume. This new resume must highlight the candidate's strengths and qualifications most relevant to the job.
+  Crucially, ensure you create a concise and impactful "PROFESSIONAL PROFILE" (or "PERFIL PROFESIONAL" if in Spanish) section that summarizes the candidate's key value for the role. This section is vital and should be generated even if the original resume doesn't explicitly have one or if it's brief.
+
   Additionally, you must include an explanation of the modifications made to the resume, focusing on why each change was made to better align the resume with the job description.
 
   The resume MUST include the following sections, in the order presented, using the exact section titles as specified below for the given language. The full name of the candidate should be the very first line of the entire resume output.
@@ -94,7 +96,7 @@ const prompt = ai.definePrompt({
   For English:
   1. Candidate's Full Name (This should be the very first line of the output)
   2. CONTACT INFORMATION: (Include Email, Phone, Address, GitHub link, Date of Birth if available in the input resume)
-  3. PROFESSIONAL PROFILE: (A brief summary of experience, skills, and professional goals.)
+  3. PROFESSIONAL PROFILE: (A brief summary of experience, skills, and professional goals. This section is mandatory and should be compelling.)
   4. WORK EXPERIENCE: (Reverse chronological order. For each job: Position, Company, Location on one line. Dates (e.g., YYYY-MM to YYYY-MM or YYYY to Present) on the next line. Then a brief description of responsibilities and achievements.)
   5. EDUCATION: (Reverse chronological order. For each entry: Degree/Title, Institution, Location on one line. Dates on the next line.)
   6. SKILLS: (Sub-categorize into "Technical:" and "Soft:" if appropriate. List skills.)
@@ -104,7 +106,7 @@ const prompt = ai.definePrompt({
   For Spanish:
   1. Nombre Completo del Candidato (Esta debe ser la primera línea de toda la respuesta)
   2. DETALLES PERSONALES: (Incluir Email, Teléfono, Dirección, Enlace de GitHub, Fecha de Nacimiento si está disponible en el currículum de entrada)
-  3. PERFIL PROFESIONAL: (Un breve resumen de experiencia, habilidades y metas profesionales.)
+  3. PERFIL PROFESIONAL: (Un breve resumen de experiencia, habilidades y metas profesionales. Esta sección es obligatoria y debe ser convincente.)
   4. EXPERIENCIA LABORAL: (Orden cronológico inverso. Para cada trabajo: Puesto, Empresa, Localidad en una línea. Fechas (ej. AAAA-MM a AAAA-MM o AAAA a Actual) en la siguiente línea. Luego una breve descripción de responsabilidades y logros.)
   5. FORMACIÓN: (Orden cronológico inverso. Para cada entrada: Título/Certificación, Institución, Localidad en una línea. Fechas en la siguiente línea.)
   6. HABILIDADES: (Sub-categorizar en "Técnicas:" y "Blandas:" si es apropiado. Listar habilidades.)
@@ -126,7 +128,6 @@ const aiResumeBuilderFlow = ai.defineFlow(
     name: 'aiResumeBuilderFlow',
     inputSchema: AIResumeBuilderInputSchema,
     outputSchema: AIResumeBuilderOutputSchema,
-    // 'tools' property removed as it's not a standard FlowConfig property here; tools are called directly.
   },
   async (input) => {
     let jobDescriptionText = input.jobDescription;
