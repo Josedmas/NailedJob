@@ -16,6 +16,7 @@ import type { PDFDocumentProxy, TextItem } from 'pdfjs-dist/types/src/display/ap
 // Configure pdfjs-dist: CRITICAL to do this before any getDocument call.
 // Globally disable worker for pdfjs-dist as the most direct way to prevent worker-related issues in SSR.
 (pdfjsLib.GlobalWorkerOptions as any).isWorkerDisabled = true;
+// Explicitly set workerSrc to null was causing "Invalid workerSrc type", so we remove it and rely on isWorkerDisabled.
 
 
 export const fetchTextFromUrlTool = ai.defineTool(
@@ -89,14 +90,14 @@ export const extractTextFromFileTool = ai.defineTool(
     inputSchema: ExtractTextFromFileInputSchema,
     outputSchema: ExtractTextFromFileOutputSchema,
   },
-  async ({ fileDataUri, mimeType }) => { // mimeType will always be 'application/pdf' here due to schema
+  async ({ fileDataUri, mimeType }) => {
     console.log('[extractTextFromFileTool] Tool invoked.');
     try {
-      console.log(`[extractTextFromFileTool] Received fileDataUri with length: ${fileDataUri.length}`);
+      console.log(`[extractTextFromFileTool] Received fileDataUri with length: ${fileDataUri?.length}`);
       console.log(`[extractTextFromFileTool] Received mimeType: ${mimeType}`);
 
       console.log('[extractTextFromFileTool] Attempting to parse Data URI for PDF.');
-      if (!fileDataUri.startsWith('data:application/pdf;base64,')) {
+      if (!fileDataUri || !fileDataUri.startsWith('data:application/pdf;base64,')) {
         const errorMsg = 'Error extracting text: Invalid PDF data URI format. Must start with "data:application/pdf;base64,".';
         console.error(`[extractTextFromFileTool] ${errorMsg}`);
         return { extractedText: errorMsg };
@@ -173,15 +174,18 @@ export const extractTextFromFileTool = ai.defineTool(
 
     } catch (error: unknown) {
       let errorMessage = "Error: PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR";
+      let errorStack = "Stack not available";
+
       if (error instanceof Error) {
-        errorMessage = `Error extracting text: ${error.name} - ${error.message}. Stack: ${error.stack}`;
+        errorMessage = error.message;
+        errorStack = error.stack || "Stack not available";
       } else if (typeof error === 'string') {
-        errorMessage = `Error extracting text: ${error}`;
+        errorMessage = error;
       } else if (typeof error === 'object' && error !== null) {
-        errorMessage = `Error extracting text: ${JSON.stringify(error)}`;
+        errorMessage = JSON.stringify(error);
       }
-      console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing:', errorMessage);
-      return { extractedText: errorMessage };
+      console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing:', errorMessage, 'Stack:', errorStack);
+      return { extractedText: `Error extracting text: ${errorMessage}. Stack: ${errorStack}` };
     }
   }
 );
