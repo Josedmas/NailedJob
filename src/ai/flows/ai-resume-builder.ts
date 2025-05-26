@@ -91,10 +91,10 @@ const prompt = ai.definePrompt({
 
   Additionally, you must include an explanation of the modifications made to the resume, focusing on why each change was made to better align the resume with the job description.
 
-  The resume MUST include the following sections, in the order presented, using the exact section titles as specified below for the given language. The full name of the candidate should be the very first line of the entire resume output.
+  The resume MUST include the following sections, in the order presented, using the exact section titles as specified below for the given language.
 
   For English:
-  1. Candidate's Full Name (This should be the very first line of the output)
+  1. Candidate's Full Name (The very first line of the entire resume output should *only* be the candidate's full name. Do NOT include any prefix like 'Candidate's Full Name:'.)
   2. CONTACT INFORMATION: (Include Email, Phone, Address, GitHub link, Date of Birth if available in the input resume)
   3. PROFESSIONAL PROFILE: (A brief summary of experience, skills, and professional goals. This section is mandatory and should be compelling.)
   4. WORK EXPERIENCE: (Reverse chronological order. For each job: Position, Company, Location on one line. Dates (e.g., YYYY-MM to YYYY-MM or YYYY to Present) on the next line. Then a brief description of responsibilities and achievements.)
@@ -104,7 +104,7 @@ const prompt = ai.definePrompt({
   8. INTERESTS: (List a few professional or relevant personal interests.)
 
   For Spanish:
-  1. Nombre Completo del Candidato (Esta debe ser la primera línea de toda la respuesta)
+  1. Nombre Completo del Candidato (La primera línea de toda la respuesta debe ser *únicamente* el nombre completo del candidato. No incluyas ningún prefijo como 'Nombre Completo del Candidato:'.)
   2. DETALLES PERSONALES: (Incluir Email, Teléfono, Dirección, Enlace de GitHub, Fecha de Nacimiento si está disponible en el currículum de entrada)
   3. PERFIL PROFESIONAL: (Un breve resumen de experiencia, habilidades y metas profesionales. Esta sección es obligatoria y debe ser convincente.)
   4. EXPERIENCIA LABORAL: (Orden cronológico inverso. Para cada trabajo: Puesto, Empresa, Localidad en una línea. Fechas (ej. AAAA-MM a AAAA-MM o AAAA a Actual) en la siguiente línea. Luego una breve descripción de responsabilidades y logros.)
@@ -119,7 +119,7 @@ const prompt = ai.definePrompt({
   {{#if profilePhotoDataUri}}Profile Photo context: {{media url=profilePhotoDataUri}} {{!-- This is for AI context only, photo is handled separately for PDF --}}{{/if}}
   Language: {{{language}}}
 
-  **Important Instruction for Language and Structure:** You MUST generate the new resume AND the explanation of modifications strictly in the language specified in the 'Language' field above. Adhere to the section titles and order specified for that language. Ensure each section starts with its designated title (e.g., "PROFESSIONAL PROFILE:" or "PERFIL PROFESIONAL:"). The candidate's full name must be the very first line of the output.
+  **Important Instruction for Language and Structure:** You MUST generate the new resume AND the explanation of modifications strictly in the language specified in the 'Language' field above. Adhere to the section titles and order specified for that language. The candidate's full name must be the very first line of the output, with no preceding text or labels on that line. Ensure each subsequent section starts with its designated title (e.g., "PROFESSIONAL PROFILE:" or "PERFIL PROFESIONAL:").
   `,
 });
 
@@ -189,3 +189,4 @@ const aiResumeBuilderFlow = ai.defineFlow(
     return output!;
   }
 );
+
