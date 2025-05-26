@@ -23,35 +23,52 @@ let client: MongoClient | null = null;
 
 async function getMongoClient(): Promise<MongoClient> {
   if (!MONGODB_URI) {
+    console.error("MongoDB URI is not defined in environment variables. Cannot connect.");
     throw new Error('MongoDB URI is not defined in environment variables.');
   }
-  if (client) { // If client is already created, assume it handles its connection state.
+  if (client) {
     try {
       // A lightweight way to check if the client is still connected/usable
       // by sending a ping. If it fails, we'll nullify the client to recreate.
       await client.db('admin').command({ ping: 1 });
+      console.log("Reusing existing MongoDB client connection.");
       return client;
     } catch (pingError) {
-      console.warn("MongoDB ping failed, attempting to reconnect.", pingError);
-      await client.close(); // Close the potentially broken client
+      console.warn("MongoDB ping failed on existing client, attempting to reconnect.", pingError);
+      try {
+        await client.close();
+      } catch (closeError) {
+        console.error("Error closing potentially broken MongoDB client:", closeError);
+      }
       client = null; // Force re-creation
     }
   }
 
-  console.log("Creating new MongoDB client instance.");
+  console.log(`Creating new MongoDB client instance for URI: ${MONGODB_URI.substring(0, MONGODB_URI.indexOf('@') > 0 ? MONGODB_URI.indexOf('@') : MONGODB_URI.length)}...`); // Log URI without credentials
   client = new MongoClient(MONGODB_URI, {
     serverApi: {
       version: ServerApiVersion.v1,
       strict: true,
       deprecationErrors: true,
-    }
+    },
+    tls: true, // Explicitly enable TLS
   });
 
   try {
     await client.connect();
     console.log("Successfully connected to MongoDB.");
+    // Optional: Ping the database to confirm connection after connect()
+    await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } catch (error) {
-    console.error("Failed to connect to MongoDB", error);
+    console.error("Failed to connect to MongoDB:", error);
+    if (client) {
+      try {
+        await client.close();
+      } catch (closeError) {
+        console.error("Error closing MongoDB client after connection failure:", closeError);
+      }
+    }
     client = null; // Ensure client is null if connection fails
     throw error; // Re-throw to indicate connection failure
   }
@@ -76,7 +93,7 @@ export async function saveCandidateDataToMongoDB(data: Omit<CandidateDataRecord,
     };
 
     const result = await collection.insertOne(newRecord);
-    console.log(`Candidate data saved to MongoDB with ID: ${result.insertedId}`);
+    console.log(`Candidate data saved to MongoDB with ID: ${result.insertedId} in collection ${MONGODB_COLLECTION_NAME} of database ${MONGODB_DB_NAME}`);
   } catch (error) {
     console.error('Failed to save candidate data to MongoDB:', error);
     // Do not let storage failure break the main AI flow for the user
@@ -90,7 +107,7 @@ export async function closeMongoDBConnection(): Promise<void> {
       console.log("MongoDB connection closed.");
       client = null;
     } catch (error) {
-      console.error("Failed to close MongoDB connection", error);
+      console.error("Failed to close MongoDB connection:", error);
     }
   }
 }
