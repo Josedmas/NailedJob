@@ -54,7 +54,7 @@ CV Text:
 Use these extracted keywords to search for jobs.
 You MUST use the 'findJobsTool' to find relevant job postings.
 The search should be conducted for jobs in "Spain".
-The target job portals for the search are "InfoJobs", "LinkedIn", and "Indeed".
+The tool will automatically search InfoJobs, LinkedIn, and Indeed.
 Aim to find up to 10 job postings that appear to be distinct based on their (simulated) details.
 The job postings should ideally be less than 30 days old (the tool will simulate this).
 

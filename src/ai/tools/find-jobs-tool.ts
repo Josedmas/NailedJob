@@ -16,7 +16,7 @@ export const JobPostingSchema = z.object({
   company: z.string().optional().describe('The name of the company offering the job.'),
   location: z.string().describe('The location of the job.'),
   descriptionSnippet: z.string().optional().describe('A short snippet of the job description.'),
-  link: z.string().describe(
+  link: z.string().url().describe( // Re-added .url() for stronger semantic hint
     'The COMPLETE and EXACT search results page URL from the job portal. ' +
     'This URL will include paths and query parameters (e.g., "https://www.example.com/jobs/search?q=keyword"). ' +
     'It MUST NOT be just a base domain (e.g., "https://www.example.com"). ' +
@@ -30,7 +30,7 @@ export type JobPosting = z.infer<typeof JobPostingSchema>;
 export const FindJobsToolInputSchema = z.object({
   keywords: z.array(z.string()).min(1).describe('An array of keywords to search for (e.g., skills, job titles from a CV).'),
   country: z.string().describe('The country to search for jobs in (e.g., "Spain").'),
-  jobPortals: z.array(z.string()).min(1).describe('Specific job portals to simulate searching on (e.g., ["InfoJobs", "LinkedIn", "Indeed"]).'),
+  // jobPortals: z.array(z.string()).min(1).describe('Specific job portals to simulate searching on (e.g., ["InfoJobs", "LinkedIn", "Indeed"]).'), // REMOVED
   limit: z.number().optional().default(10).describe('Maximum number of job postings to return.'),
 });
 export type FindJobsToolInput = z.infer<typeof FindJobsToolInputSchema>;
@@ -38,11 +38,12 @@ export type FindJobsToolInput = z.infer<typeof FindJobsToolInputSchema>;
 export const findJobsTool = ai.defineTool(
   {
     name: 'findJobsTool',
-    description: 'Simulates searching for job postings on specified portals based on keywords and location. Returns a list of mock job postings with links to real search pages on those portals. For the purpose of this simulation, assume jobs are recent (less than 30 days old).',
+    description: 'Simulates searching for job postings on InfoJobs, LinkedIn, and Indeed based on keywords and location. Returns a list of mock job postings with links to real search pages on those portals. For the purpose of this simulation, assume jobs are recent (less than 30 days old).',
     inputSchema: FindJobsToolInputSchema,
     outputSchema: z.array(JobPostingSchema),
   },
-  async ({ keywords, country, jobPortals, limit }) => {
+  async ({ keywords, country, limit }) => { // jobPortals removed from parameters
+    const jobPortals = ["InfoJobs", "LinkedIn", "Indeed"]; // Hardcoded inside the tool
     const mockJobs: JobPosting[] = [];
     const companies = ["Tech Solutions Inc.", "Global Innovations Ltd.", "Future Enterprises", "Creative Minds Co.", "Innovatech Corp", "Synergy Systems"];
     const baseJobTitles = ["Software Engineer", "Product Manager", "Data Analyst", "UX Designer", "Marketing Specialist", "Project Manager", "Business Analyst"];
@@ -73,7 +74,7 @@ export const findJobsTool = ai.defineTool(
     const actualLimit = limit || 10;
 
     for (let i = 0; i < actualLimit; i++) {
-      const portal = jobPortals[i % jobPortals.length] || "GenericPortal";
+      const portal = jobPortals[i % jobPortals.length]; // Uses the hardcoded jobPortals
       const company = companies[i % companies.length];
       const baseTitle = baseJobTitles[i % baseJobTitles.length];
       const location = locationsSpain[i % locationsSpain.length]; 
