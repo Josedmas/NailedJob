@@ -43,6 +43,13 @@ const initialFormState: CareerCraftFormState = {
   language: 'English',
 };
 
+// Define the color palette for PDF resume themes
+const resumeColorThemes = [
+  { r: 192, g: 57, b: 43, name: 'Red' },    // Alizarin Red
+  { r: 39, g: 174, b: 96, name: 'Green' },  // Emerald Green
+  { r: 142, g: 68, b: 173, name: 'Purple' } // Wisteria Purple
+];
+
 export default function CareerCraftWizard() {
   const { t, language: appLanguage } = useLanguage();
   const [currentStep, setCurrentStep] = useState(1);
@@ -51,6 +58,7 @@ export default function CareerCraftWizard() {
   const [tailoredResumeResult, setTailoredResumeResult] = useState<AIResumeBuilderOutput | null>(null);
   const [jobListingsResult, setJobListingsResult] = useState<AutomatedJobSearchOutput | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentColorThemeIndex, setCurrentColorThemeIndex] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -83,7 +91,7 @@ export default function CareerCraftWizard() {
             ...prev,
             resumeFileDataUri: reader.result as string,
             resumeFileName: file.name,
-            resumeFileMimeType: file.type || 'application/pdf', // Default to 'application/pdf' if file.type is empty
+            resumeFileMimeType: file.type || 'application/pdf', // Default to 'application/pdf'
           }));
         }
       };
@@ -98,6 +106,7 @@ export default function CareerCraftWizard() {
     setCompatibilityResult(null);
     setTailoredResumeResult(null);
     setJobListingsResult(null);
+    setCurrentColorThemeIndex(0); // Reset color theme index
     setLoading(false);
   };
 
@@ -127,7 +136,7 @@ export default function CareerCraftWizard() {
         });
         return;
       }
-      if (formState.resumeFileDataUri && (!formState.resumeFileMimeType || formState.resumeFileMimeType !== 'application/pdf')) {
+       if (formState.resumeFileDataUri && (!formState.resumeFileMimeType || formState.resumeFileMimeType !== 'application/pdf')) {
         toast({
           variant: "destructive",
           title: t('fileErrorTitle') || "File Error",
@@ -142,7 +151,8 @@ export default function CareerCraftWizard() {
             resume: formState.resumeText || undefined,
             resumeFileDataUri: formState.resumeFileDataUri || undefined,
             resumeFileName: formState.resumeFileName || undefined,
-            resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined, // Ensure it's application/pdf if URI is present
+            // Ensure mimeType is 'application/pdf' if URI is present, otherwise undefined
+            resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined,
             language: formState.language,
         };
         const result = await analyzeCompatibility(input);
@@ -158,13 +168,15 @@ export default function CareerCraftWizard() {
         });
         return;
       }
+      // Cycle to the next color theme for the resume
+      setCurrentColorThemeIndex(prevIndex => (prevIndex + 1) % resumeColorThemes.length);
       await callAI(async () => {
         const input: AIResumeBuilderInput = {
           jobDescription: formState.jobOfferText || undefined,
           jobOfferUrl: formState.jobOfferUrl || undefined,
           resume: formState.resumeText || undefined,
           resumeFileDataUri: formState.resumeFileDataUri || undefined,
-          resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined, // Ensure it's application/pdf if URI is present
+          resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined,
           profilePhotoDataUri: formState.profilePhotoDataUri || undefined,
           language: formState.language,
         };
@@ -197,13 +209,20 @@ export default function CareerCraftWizard() {
   };
 
   const renderStep = () => {
+    const selectedAccentColor = resumeColorThemes[currentColorThemeIndex];
     switch (currentStep) {
       case 1:
         return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} />;
       case 2:
         return <CompatibilityAnalysisStep result={compatibilityResult} loading={loading} />;
       case 3:
-        return <ResumeBuilderStep result={tailoredResumeResult} loading={loading} profilePhotoDataUri={formState.profilePhotoDataUri} resumeLanguage={formState.language} />;
+        return <ResumeBuilderStep 
+                  result={tailoredResumeResult} 
+                  loading={loading} 
+                  profilePhotoDataUri={formState.profilePhotoDataUri} 
+                  resumeLanguage={formState.language}
+                  accentColor={selectedAccentColor} 
+                />;
       case 4:
         return <JobSearchStep result={jobListingsResult} loading={loading} />;
       default:
@@ -235,7 +254,7 @@ export default function CareerCraftWizard() {
             <ArrowLeft className="mr-2 h-4 w-4" /> {t('previousButton')}
           </Button>
         )}
-        {currentStep === 1 && <div></div>}
+        {currentStep === 1 && <div></div>} {/* Placeholder to keep right button aligned */}
 
         {currentStep < 4 ? (
           <Button onClick={handleNextStep} disabled={loading}>

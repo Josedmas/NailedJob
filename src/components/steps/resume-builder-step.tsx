@@ -11,15 +11,23 @@ import { jsPDF } from 'jspdf';
 import { useLanguage } from '@/contexts/language-context';
 import type { Locale } from '@/lib/translations';
 
+interface AccentColor {
+  r: number;
+  g: number;
+  b: number;
+  name?: string; // Optional name for debugging
+}
+
 interface ResumeBuilderStepProps {
   result: AIResumeBuilderOutput | null;
   loading: boolean;
   profilePhotoDataUri?: string;
   resumeLanguage: string; // Expect 'English', 'Spanish', etc.
+  accentColor: AccentColor;
 }
 
-export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resumeLanguage }: ResumeBuilderStepProps) {
-  const { t, language: uiLanguage } = useLanguage();
+export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resumeLanguage, accentColor }: ResumeBuilderStepProps) {
+  const { t } = useLanguage();
 
   if (loading) {
     return <LoadingIndicator message={t('buildingResumeMessage') || "Building your tailored resume..."} />;
@@ -57,19 +65,20 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 15;
-    const leftColumnWidth = 50;
+    const leftColumnWidth = 55; // Slightly wider for colored background
     const rightColumnX = margin + leftColumnWidth + 5;
     const contentWidth = pageWidth - rightColumnX - margin;
     let yPosition = margin;
-    const lineHeight = 6;
+    const lineHeight = 6; // For 10pt font
     const sectionSpacing = 8;
-    const itemSpacing = 3; // Spacing between items in a list (e.g. experience details)
+    const itemSpacing = 3;
 
-    // --- Default Font ---
     doc.setFont('Helvetica', 'normal');
 
     // --- Resume Header (Photo and Name) ---
-    const photoSize = 30; // mm
+    const photoSize = 30;
+    let nameYOffset = (photoSize / 2) + 3; // Initial offset for name, centered with photo
+
     if (profilePhotoDataUri) {
       try {
         const parts = profilePhotoDataUri.split(',');
@@ -78,47 +87,65 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
           if (mimeTypePart && mimeTypePart[1]) {
             const imageType = mimeTypePart[1].split('/')[1]?.toUpperCase();
             if (imageType && (imageType === 'PNG' || imageType === 'JPEG' || imageType === 'JPG')) {
-              doc.addImage(profilePhotoDataUri, imageType, margin, yPosition, photoSize, photoSize);
+              doc.addImage(profilePhotoDataUri, imageType, margin + 5, yPosition, photoSize, photoSize); // Photo slightly indented in left column
             }
           }
         }
       } catch (e) {
         console.error("Error adding profile photo to PDF:", e);
       }
+      yPosition += photoSize + sectionSpacing / 2;
+    } else {
+      nameYOffset = 0; // If no photo, name starts higher
     }
-
-    // Extract name (assuming it's the first line of tailoredResume)
+    
     const resumeLines = tailoredResume.split('\n');
     const candidateName = resumeLines.length > 0 ? resumeLines[0].trim() : "Candidate Name";
     
-    doc.setFontSize(22);
+    doc.setFontSize(24);
     doc.setFont('Helvetica', 'bold');
-    const nameX = profilePhotoDataUri ? margin + photoSize + 5 : margin;
-    doc.text(candidateName, nameX, yPosition + (photoSize / 2) + 3); // Vertically centerish name with photo
-    yPosition += photoSize + sectionSpacing;
+    doc.setTextColor(accentColor.r, accentColor.g, accentColor.b); // Name in accent color
+    // Name in the right column, potentially below where photo would be, or at top if no photo
+    const nameX = profilePhotoDataUri ? rightColumnX : margin;
+    const nameActualY = profilePhotoDataUri ? margin + nameYOffset : yPosition + nameYOffset;
+    doc.text(candidateName, nameX, nameActualY);
+    doc.setTextColor(0,0,0); // Reset text color
+
+    // Adjust yPosition based on whether photo was present and name position
+    if (!profilePhotoDataUri) {
+      yPosition += lineHeight * 2 + sectionSpacing / 2; // Space after name if no photo
+    } else {
+      // yPosition was already incremented by photoSize
+    }
+    
+    // Horizontal line below name/photo area
+    doc.setDrawColor(accentColor.r, accentColor.g, accentColor.b);
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += sectionSpacing;
 
 
     // --- Helper Function to Draw Sections ---
     const drawSection = (titleKey: string, content: string, iconUnicode: string) => {
-      if (yPosition + lineHeight * 3 > pageHeight - margin) { // Check if enough space for title + a bit of content
+      if (yPosition + lineHeight * 3 > pageHeight - margin) { 
         doc.addPage();
         yPosition = margin;
       }
 
       // Section Title (Left Column)
-      doc.setFillColor(230, 230, 230); // Light gray background
+      doc.setFillColor(accentColor.r, accentColor.g, accentColor.b);
       doc.rect(margin, yPosition - lineHeight / 1.5, leftColumnWidth, lineHeight * 1.5, 'F');
       
       doc.setFontSize(12);
       doc.setFont('Helvetica', 'bold');
-      doc.setTextColor(50, 50, 50); // Dark gray text
+      doc.setTextColor(255, 255, 255); // White text on accent background
       const sectionTitleText = `${iconUnicode} ${t(titleKey, undefined, resumeLanguage.toLowerCase() as Locale)}`;
       doc.text(sectionTitleText, margin + 3, yPosition + 2);
       
       // Section Content (Right Column)
       doc.setFontSize(10);
       doc.setFont('Helvetica', 'normal');
-      doc.setTextColor(0, 0, 0); // Black text
+      doc.setTextColor(0, 0, 0); // Black text for content
       
       const splitContent = doc.splitTextToSize(content, contentWidth);
       let currentYForContent = yPosition;
@@ -127,23 +154,21 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
         if (currentYForContent + lineHeight > pageHeight - margin) {
           doc.addPage();
           currentYForContent = margin;
-           // Redraw title on new page if content spans multiple pages (optional, can be complex)
         }
-        // Handle bullet points (simple check for now)
-        if (line.trim().startsWith('•') || line.trim().startsWith('-') || line.trim().startsWith('*')) {
-            doc.text("•", rightColumnX, currentYForContent);
-            doc.text(line.trim().substring(1).trim(), rightColumnX + 3, currentYForContent);
+        const trimmedLine = line.trim();
+        if (trimmedLine.startsWith('•') || trimmedLine.startsWith('-') || trimmedLine.startsWith('*')) {
+            doc.text("•", rightColumnX, currentYForContent); // Bullet point
+            doc.text(trimmedLine.substring(1).trim(), rightColumnX + 3, currentYForContent); // Text after bullet
         } else {
-            doc.text(line, rightColumnX, currentYForContent);
+            doc.text(trimmedLine, rightColumnX, currentYForContent);
         }
         currentYForContent += lineHeight;
       });
-      yPosition = Math.max(yPosition + lineHeight * 1.5 + itemSpacing, currentYForContent + itemSpacing); // Ensure yPosition moves past title or content
-      yPosition += sectionSpacing / 2; // Reduced spacing after content before next section
+      yPosition = Math.max(yPosition + lineHeight * 1.5 + itemSpacing, currentYForContent + itemSpacing); 
+      yPosition += sectionSpacing / 2; 
     };
 
     // --- Parsing and Drawing Sections ---
-    // Define section titles based on the resume's language for parsing
     const currentLocale = resumeLanguage.toLowerCase() as Locale;
     const sectionHeaders = {
       personalDetails: t('sectionTitle_ContactInformation', undefined, currentLocale),
@@ -155,18 +180,17 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
       projects: t('sectionTitle_Projects', undefined, currentLocale),
     };
     
-    // The AI output might start with the name, then section titles.
-    // We need to skip the name part for section parsing if it was already handled.
+    // Skip the name part (first line) for section parsing
     const resumeContentForParsing = resumeLines.slice(1).join('\n');
+    const allSectionTitlesForParsing = Object.values(sectionHeaders);
 
     const extractContent = (text: string, startMarker: string, allMarkers: string[]): string => {
         const startIndex = text.toLowerCase().indexOf(startMarker.toLowerCase());
         if (startIndex === -1) return "";
 
-        let contentStart = text.indexOf('\n', startIndex);
-        if (contentStart === -1) contentStart = startIndex + startMarker.length; // if title is last thing
-        else contentStart +=1; // move past newline
-
+        let contentStart = text.indexOf('\n', startIndex); // Content starts on the next line
+        if (contentStart === -1) contentStart = startIndex + startMarker.length; 
+        else contentStart +=1;
 
         let endIndex = text.length;
         for (const marker of allMarkers) {
@@ -179,8 +203,6 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
         return text.substring(contentStart, endIndex).trim();
     };
     
-    const allSectionTitlesForParsing = Object.values(sectionHeaders);
-
     const personalDetailsContent = extractContent(resumeContentForParsing, sectionHeaders.personalDetails, allSectionTitlesForParsing);
     const profileContent = extractContent(resumeContentForParsing, sectionHeaders.profile, allSectionTitlesForParsing);
     const experienceContent = extractContent(resumeContentForParsing, sectionHeaders.workExperience, allSectionTitlesForParsing);
@@ -189,13 +211,39 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     const languagesContent = extractContent(resumeContentForParsing, sectionHeaders.languages, allSectionTitlesForParsing);
     const projectsContent = extractContent(resumeContentForParsing, sectionHeaders.projects, allSectionTitlesForParsing);
 
-    if (personalDetailsContent) drawSection('sectionTitle_ContactInformation', personalDetailsContent, '👤');
-    if (profileContent) drawSection('sectionTitle_Profile', profileContent, '📝');
-    if (experienceContent) drawSection('sectionTitle_WorkExperience', experienceContent, '💼');
-    if (projectsContent) drawSection('sectionTitle_Projects', projectsContent, '💡');
-    if (educationContent) drawSection('sectionTitle_AcademicTraining', educationContent, '🎓');
-    if (skillsContent) drawSection('sectionTitle_Skills', skillsContent, '🛠️');
-    if (languagesContent) drawSection('sectionTitle_Languages', languagesContent, '🌐');
+    // Determine draw order - typically contact info first, then profile, then experience etc.
+    // The content from the AI might not have all sections or have them in a specific order.
+    // We draw what we find.
+
+    // Right column content section (usually personal details are better in right column under name)
+    if (personalDetailsContent) {
+      doc.setFontSize(10);
+      doc.setFont('Helvetica', 'normal');
+      doc.setTextColor(80, 80, 80); // Slightly muted text for contact details
+      const personalDetailsLines = doc.splitTextToSize(personalDetailsContent, contentWidth);
+      let tempY = nameActualY + lineHeight; // Start below the name
+      if (!profilePhotoDataUri) tempY = yPosition; // If no photo, start from current yPos
+
+      personalDetailsLines.forEach(line => {
+        if (tempY + lineHeight > pageHeight - margin) {
+            doc.addPage();
+            tempY = margin;
+        }
+        doc.text(line, nameX, tempY);
+        tempY += lineHeight * 0.8; // Slightly tighter line spacing for contact details
+      });
+       if (!profilePhotoDataUri) yPosition = tempY + sectionSpacing;
+       else yPosition = Math.max(yPosition, tempY + sectionSpacing); // Ensure yPosition is past contact details or photo
+       doc.setTextColor(0,0,0); // Reset text color
+    }
+
+
+    if (profileContent) drawSection('sectionTitle_Profile', profileContent, '📝'); // User icon (U+1F4DD)
+    if (experienceContent) drawSection('sectionTitle_WorkExperience', experienceContent, '💼'); // Briefcase icon (U+1F4BC)
+    if (projectsContent) drawSection('sectionTitle_Projects', projectsContent, '💡'); // Light bulb (U+1F4A1)
+    if (educationContent) drawSection('sectionTitle_AcademicTraining', educationContent, '🎓'); // Graduation cap (U+1F393)
+    if (skillsContent) drawSection('sectionTitle_Skills', skillsContent, '🛠️'); // Hammer and Wrench (U+1F6E0️) - may not render well in all PDF viewers
+    if (languagesContent) drawSection('sectionTitle_Languages', languagesContent, '🌐'); // Globe with meridians (U+1F310)
     
     doc.save('tailored_resume.pdf');
   };
