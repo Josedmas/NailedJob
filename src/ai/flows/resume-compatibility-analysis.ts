@@ -88,9 +88,8 @@ const CompatibilityOutputSchema = z.object({
     .describe(
       'A brief explanation of the compatibility score, highlighting the strengths of the resume in relation to the job description, in the specified language.'
     ),
-  // New structured fields to be extracted by AI
   nombre: z.string().optional().describe("The candidate's full name as extracted from the resume."),
-  email: z.string().optional().describe("The candidate's email address as extracted from the resume."), // Removed .email()
+  email: z.string().optional().describe("The candidate's email address as extracted from the resume."),
   experienciaLaboral: z.array(ExperienciaLaboralSchema).optional().describe("A list of work experiences extracted from the resume."),
   educacion: z.array(EducacionSchema).optional().describe("A list of educational qualifications extracted from the resume."),
   habilidades: z.array(z.string()).optional().describe("A list of skills extracted from the resume."),
@@ -106,6 +105,7 @@ export async function analyzeCompatibility(
 
 const ProcessedCompatibilityInputSchema = z.object({
   jobDescriptionText: z.string().describe('The job description text.'),
+  jobDescriptionOriginUrl: z.string().url().optional().describe('The URL from which the job description was fetched, if applicable.'),
   resumeText: z.string().describe('The resume text.'),
   language: z.string().describe('The target language for the explanation and data extraction, e.g., "English", "Spanish".'),
 });
@@ -117,6 +117,9 @@ const prompt = ai.definePrompt({
   output: {schema: CompatibilityOutputSchema},
   prompt: `You are an AI assistant that analyzes the compatibility between a job description and a resume, and extracts structured information from the resume.
 
+  {{#if jobDescriptionOriginUrl}}
+  The following job description was fetched from the URL: {{{jobDescriptionOriginUrl}}}
+  {{/if}}
   Job Description:
   {{jobDescriptionText}}
 
@@ -155,9 +158,11 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     let jobOfferIdentifier = input.jobDescription || input.jobOfferUrl || 'unknown_job_offer';
     let resumeSource: 'text' | 'file' = input.resume ? 'text' : 'file';
     let resumeIdentifier = input.resume || input.resumeFileName || 'unknown_resume';
+    let jobDescriptionOriginUrl: string | undefined = undefined;
 
 
     if (!jobDescriptionText && input.jobOfferUrl) {
+      jobDescriptionOriginUrl = input.jobOfferUrl;
       console.log(`[CompatibilityAnalysisFlow] Fetching job description from URL: ${input.jobOfferUrl}`);
       const urlOutput  = await fetchTextFromUrlTool({url: input.jobOfferUrl});
       if (!urlOutput?.text) {
@@ -175,7 +180,7 @@ const compatibilityAnalysisFlow = ai.defineFlow(
       console.log(`[CompatibilityAnalysisFlow] Extracting resume text from PDF Data URI.`);
       const fileOutput: ExtractTextFromFileOutput = await extractTextFromFileTool({
         fileDataUri: input.resumeFileDataUri,
-        mimeType: input.resumeFileMimeType,
+        mimeType: input.resumeFileMimeType as 'application/pdf',
       });
       
       console.log('[CompatibilityAnalysisFlow] Output from extractTextFromFileTool:', JSON.stringify(fileOutput, null, 2));
@@ -205,7 +210,12 @@ const compatibilityAnalysisFlow = ai.defineFlow(
         throw new Error("Resume text is missing after attempting to process inputs.");
     }
 
-    const {output: promptOutput} = await prompt({ jobDescriptionText, resumeText, language: input.language });
+    const {output: promptOutput} = await prompt({
+      jobDescriptionText,
+      jobDescriptionOriginUrl,
+      resumeText,
+      language: input.language
+    });
 
     if (promptOutput) {
         console.log('[CompatibilityAnalysisFlow] Attempting to save candidate data to MongoDB. Prompt output received:', JSON.stringify(promptOutput, null, 2).substring(0, 500) + "...");
@@ -221,9 +231,9 @@ const compatibilityAnalysisFlow = ai.defineFlow(
             experienciaLaboral: promptOutput.experienciaLaboral,
             educacion: promptOutput.educacion,
             habilidades: promptOutput.habilidades,
-            cvTextoCrudo: resumeText, // Using the processed resumeText as cvTextoCrudo
-            fullJobDescriptionText: jobDescriptionText, // Storing full job description text
-            fullResumeText: resumeText, // Storing full resume text as initially processed
+            cvTextoCrudo: resumeText, 
+            fullJobDescriptionText: jobDescriptionText, 
+            fullResumeText: resumeText, 
             resumeLanguage: input.language,
         };
         saveCandidateDataToMongoDB(candidateDataToSave).catch(err => {
@@ -236,3 +246,4 @@ const compatibilityAnalysisFlow = ai.defineFlow(
     return promptOutput!;
   }
 );
+

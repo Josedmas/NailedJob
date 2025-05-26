@@ -74,6 +74,7 @@ export async function aiResumeBuilder(input: AIResumeBuilderInput): Promise<AIRe
 
 const ProcessedAIResumeBuilderInputSchema = z.object({
   jobDescriptionText: z.string().describe('The job description text.'),
+  jobDescriptionOriginUrl: z.string().url().optional().describe('The URL from which the job description was fetched, if applicable.'),
   resumeText: z.string().describe('The resume text.'),
   profilePhotoDataUri: z.string().optional(),
   language: z.string().describe('The target language for the resume and explanation, e.g., "English", "Spanish".'),
@@ -113,7 +114,9 @@ const prompt = ai.definePrompt({
   7. IDIOMAS: (Listar idiomas y su nivel de competencia, ej. "Español - Nativo", "Inglés - Fluido".)
   8. INTERESES: (Listar algunos intereses personales relevantes o profesionales.)
 
-
+  {{#if jobDescriptionOriginUrl}}
+  The job description was fetched from the URL: {{{jobDescriptionOriginUrl}}}
+  {{/if}}
   Job Description: {{{jobDescriptionText}}}
   Original Resume: {{{resumeText}}}
   {{#if profilePhotoDataUri}}Profile Photo context: {{media url=profilePhotoDataUri}} {{!-- This is for AI context only, photo is handled separately for PDF --}}{{/if}}
@@ -132,8 +135,10 @@ const aiResumeBuilderFlow = ai.defineFlow(
   async (input) => {
     let jobDescriptionText = input.jobDescription;
     let resumeText = input.resume;
+    let jobDescriptionOriginUrl: string | undefined = undefined;
 
     if (!jobDescriptionText && input.jobOfferUrl) {
+      jobDescriptionOriginUrl = input.jobOfferUrl;
       console.log(`[AIResumeBuilderFlow] Fetching job description from URL: ${input.jobOfferUrl}`);
       const urlOutput = await fetchTextFromUrlTool({ url: input.jobOfferUrl });
       if (!urlOutput?.text) throw new Error('Could not extract text from job offer URL.');
@@ -147,7 +152,7 @@ const aiResumeBuilderFlow = ai.defineFlow(
       console.log(`[AIResumeBuilderFlow] Extracting resume text from PDF Data URI.`);
       const toolInput: ExtractTextFromFileInput = {
         fileDataUri: input.resumeFileDataUri,
-        mimeType: input.resumeFileMimeType as 'application/pdf' // Cast as it's validated by schema
+        mimeType: input.resumeFileMimeType as 'application/pdf' 
       };
       const fileOutput: ExtractTextFromFileOutput = await extractTextFromFileTool(toolInput);
       
@@ -180,6 +185,7 @@ const aiResumeBuilderFlow = ai.defineFlow(
 
     const processedInput: z.infer<typeof ProcessedAIResumeBuilderInputSchema> = {
         jobDescriptionText,
+        jobDescriptionOriginUrl,
         resumeText,
         profilePhotoDataUri: input.profilePhotoDataUri,
         language: input.language
