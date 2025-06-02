@@ -9,16 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Image from 'next/image';
-import { UploadCloud, FileText, Link2 } from 'lucide-react';
+import { UploadCloud, FileText, Link2, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/contexts/language-context';
 
 interface InformationGatheringStepProps {
   formState: CareerCraftFormState;
   onInputChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  isLoadingFile?: boolean; // New prop to indicate file loading/processing
 }
 
-export function InformationGatheringStep({ formState, onInputChange, onFileChange }: InformationGatheringStepProps) {
+export function InformationGatheringStep({ formState, onInputChange, onFileChange, isLoadingFile }: InformationGatheringStepProps) {
   const { t } = useLanguage();
 
   return (
@@ -42,6 +43,7 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
               placeholder={t('jobOfferTextPlaceholder')}
               rows={6}
               className="mt-1"
+              disabled={isLoadingFile}
             />
              <p className="text-sm text-muted-foreground mt-1">{t('jobOfferTextOrUrl')}</p>
           </div>
@@ -59,6 +61,7 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
               onChange={onInputChange}
               placeholder={t('jobOfferUrlPlaceholder')}
               className="mt-1"
+              disabled={isLoadingFile}
             />
           </div>
         </CardContent>
@@ -83,15 +86,24 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
               placeholder={t('resumeTextPlaceholder')}
               rows={8}
               className="mt-1"
+              disabled={isLoadingFile}
             />
             <p className="text-sm text-muted-foreground mt-1">{t('resumeTextOrFile')}</p>
           </div>
           <div className="text-center my-2 text-sm text-muted-foreground">{t('orSeparator')}</div>
           <div>
-            <Label htmlFor="resumeFile">
-                <UploadCloud className="inline-block mr-1 h-4 w-4 align-text-bottom" />
-                {t('resumeFileLabel')}
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="resumeFile">
+                  <UploadCloud className="inline-block mr-1 h-4 w-4 align-text-bottom" />
+                  {t('resumeFileLabel')}
+              </Label>
+              {isLoadingFile && formState.resumeFileName && (
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing {formState.resumeFileName}...
+                </div>
+              )}
+            </div>
             <Input
               id="resumeFile"
               name="resumeFile" // Ensure this name matches in handleFileChange
@@ -99,10 +111,18 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
               accept=".pdf,application/pdf"
               onChange={onFileChange}
               className="mt-1"
+              disabled={isLoadingFile}
             />
-            {formState.resumeFileName && (
+            {formState.resumeFileName && !isLoadingFile && (
                 <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                    {t('fileUploadedLabel')}: {formState.resumeFileName} ({formState.resumeFileMimeType})
+                    {t('fileUploadedLabel')}: {formState.resumeFileName}
+                    {formState.resumeFileMimeType ? ` (${formState.resumeFileMimeType})` : ''}
+                    {formState.resumeText && formState.resumeFileDataUri ? ' - Text extracted.' : ''}
+                </p>
+            )}
+             {formState.resumeFileDataUri && !formState.resumeText && !isLoadingFile && (
+                <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+                    PDF uploaded. If text extraction failed, please paste manually.
                 </p>
             )}
           </div>
@@ -116,6 +136,7 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
               accept="image/*"
               onChange={onFileChange}
               className="mt-1"
+              disabled={isLoadingFile}
             />
             {formState.profilePhotoDataUri && (
               <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
@@ -132,7 +153,7 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
           </div>
           <div>
             <Label htmlFor="language">{t('languageForResumeLabel')}</Label>
-            <Select name="language" value={formState.language} onValueChange={(value) => onInputChange({ target: { name: 'language', value } } as any)}>
+            <Select name="language" value={formState.language} onValueChange={(value) => onInputChange({ target: { name: 'language', value } } as any)} disabled={isLoadingFile}>
               <SelectTrigger className="w-full mt-1">
                 <SelectValue placeholder={t('selectLanguagePlaceholder')} />
               </SelectTrigger>

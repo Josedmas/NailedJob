@@ -19,6 +19,16 @@ import { automatedJobSearch } from '@/ai/flows/automated-job-search';
 
 import { useLanguage } from '@/contexts/language-context';
 
+// Import pdfjs-dist
+import * as pdfjsLib from 'pdfjs-dist';
+// Specify the workerSrc for pdfjs-dist. Required for client-side usage.
+// Use a CDN version for simplicity in this environment.
+// In a production app, you might host this worker file yourself.
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+}
+
+
 export interface CareerCraftFormState {
   jobOfferText: string;
   jobOfferUrl: string;
@@ -67,29 +77,100 @@ export default function CareerCraftWizard() {
     setFormState(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (e.target.name === 'profilePhoto') {
+      setLoading(true);
+      if (e.target.name === 'profilePhoto') {
+        const reader = new FileReader();
+        reader.onloadend = () => {
           setFormState(prev => ({
             ...prev,
             profilePhotoDataUri: reader.result as string,
             profilePhotoName: file.name,
           }));
-        } else if (e.target.name === 'resumeFile') {
-           setFormState(prev => ({
-            ...prev,
-            resumeFileDataUri: reader.result as string,
-            resumeFileName: file.name,
-            resumeFileMimeType: file.type || 'application/pdf', // Default to 'application/pdf'
-          }));
+          setLoading(false);
+        };
+        reader.onerror = () => {
+            toast({ variant: "destructive", title: "File Read Error", description: "Could not read profile photo."});
+            setLoading(false);
         }
-      };
-      reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+      } else if (e.target.name === 'resumeFile') {
+        if (file.type !== 'application/pdf') {
+          toast({ variant: "destructive", title: t('fileErrorTitle'), description: "Please select a valid PDF file for the resume." });
+          setLoading(false);
+          e.target.value = ''; // Reset file input
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            toast({ variant: "destructive", title: t('fileErrorTitle'), description: "Resume PDF is too large. Maximum 10MB." });
+            setLoading(false);
+            e.target.value = ''; // Reset file input
+            return;
+        }
+
+        const dataUriReader = new FileReader();
+        dataUriReader.onloadend = () => {
+             setFormState(prev => ({
+                ...prev,
+                resumeFileDataUri: dataUriReader.result as string, // Store Data URI
+                resumeFileName: file.name,
+                resumeFileMimeType: file.type || 'application/pdf',
+            }));
+        };
+        dataUriReader.onerror = () => {
+             toast({ variant: "destructive", title: "File Read Error", description: "Could not read resume file as Data URI."});
+             // Continue to text extraction if possible
+        }
+        dataUriReader.readAsDataURL(file);
+
+
+        const arrayBufferReader = new FileReader();
+        arrayBufferReader.onload = async (event) => {
+          try {
+            const arrayBuffer = event.target?.result as ArrayBuffer;
+            if (!arrayBuffer) {
+                 toast({ variant: "destructive", title: "File Read Error", description: "Could not read PDF content for text extraction."});
+                 setLoading(false);
+                 return;
+            }
+            const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+              const page = await pdfDoc.getPage(i);
+              const textContent = await page.getTextContent();
+              fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
+            }
+            setFormState(prev => ({
+              ...prev,
+              resumeText: fullText.trim(), // Set extracted text
+            }));
+            toast({ title: "Resume Processed", description: `Successfully extracted text from ${file.name}.` });
+          } catch (pdfError: any) {
+            console.error("Client-side PDF processing error:", pdfError);
+            toast({
+              variant: "destructive",
+              title: "PDF Processing Error",
+              description: `Could not extract text from PDF: ${pdfError.message}. Please try pasting the text manually or try a different PDF.`,
+            });
+             // Keep existing resumeText if any, or set to empty
+            setFormState(prev => ({ ...prev, resumeText: prev.resumeText || '' }));
+          } finally {
+            setLoading(false);
+          }
+        };
+        arrayBufferReader.onerror = () => {
+            toast({ variant: "destructive", title: "File Read Error", description: "Could not read resume file for text extraction."});
+            setLoading(false);
+        }
+        arrayBufferReader.readAsArrayBuffer(file);
+      } else {
+        setLoading(false); // Should not happen
+      }
     }
   };
+
 
   const resetWizard = () => {
     setCurrentStep(1);
@@ -119,6 +200,7 @@ export default function CareerCraftWizard() {
 
   const handleNextStep = async () => {
     if (currentStep === 1) {
+      // Prioritize formState.resumeText. If it's empty, then check resumeFileDataUri for server-side fallback.
       if ((!formState.jobOfferText && !formState.jobOfferUrl) || (!formState.resumeText && !formState.resumeFileDataUri)) {
         toast({
             variant: "destructive",
@@ -127,12 +209,8 @@ export default function CareerCraftWizard() {
         });
         return;
       }
-       let effectiveResumeMimeType = formState.resumeFileMimeType;
-       if (formState.resumeFileDataUri && !formState.resumeFileMimeType) {
-           effectiveResumeMimeType = 'application/pdf'; // Default if URI is present but mime type is missing
-       }
-
-       if (formState.resumeFileDataUri && effectiveResumeMimeType !== 'application/pdf') {
+       // If resumeFileDataUri is present but mimeType is not 'application/pdf' (should be caught by client-side check too)
+       if (formState.resumeFileDataUri && formState.resumeFileMimeType && formState.resumeFileMimeType !== 'application/pdf') {
         toast({
           variant: "destructive",
           title: t('fileErrorTitle') || "File Error",
@@ -140,14 +218,17 @@ export default function CareerCraftWizard() {
         });
         return;
       }
+
       await callAI(async () => {
         const input: CompatibilityInput = {
             jobDescription: formState.jobOfferText || undefined,
             jobOfferUrl: formState.jobOfferUrl || undefined,
+            // If resumeText is populated (either pasted or client-extracted), use it.
+            // Otherwise, pass resumeFileDataUri for server-side tool to attempt extraction.
             resume: formState.resumeText || undefined,
-            resumeFileDataUri: formState.resumeFileDataUri || undefined,
+            resumeFileDataUri: formState.resumeText ? undefined : (formState.resumeFileDataUri || undefined),
             resumeFileName: formState.resumeFileName || undefined,
-            resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined,
+            resumeFileMimeType: formState.resumeText ? undefined : (formState.resumeFileDataUri ? 'application/pdf' : undefined),
             language: formState.language,
         };
         const result = await analyzeCompatibility(input);
@@ -155,11 +236,7 @@ export default function CareerCraftWizard() {
         setCurrentStep(2);
       });
     } else if (currentStep === 2) {
-      let effectiveResumeMimeType = formState.resumeFileMimeType;
-      if (formState.resumeFileDataUri && !formState.resumeFileMimeType) {
-          effectiveResumeMimeType = 'application/pdf';
-      }
-      if (formState.resumeFileDataUri && effectiveResumeMimeType !== 'application/pdf') {
+      if (formState.resumeFileDataUri && formState.resumeFileMimeType && formState.resumeFileMimeType !== 'application/pdf' && !formState.resumeText) {
          toast({
           variant: "destructive",
           title: t('fileErrorTitle') || "File Error",
@@ -172,8 +249,8 @@ export default function CareerCraftWizard() {
           jobDescription: formState.jobOfferText || undefined,
           jobOfferUrl: formState.jobOfferUrl || undefined,
           resume: formState.resumeText || undefined,
-          resumeFileDataUri: formState.resumeFileDataUri || undefined,
-          resumeFileMimeType: formState.resumeFileDataUri ? 'application/pdf' : undefined,
+          resumeFileDataUri: formState.resumeText ? undefined : (formState.resumeFileDataUri || undefined),
+          resumeFileMimeType: formState.resumeText ? undefined : (formState.resumeFileDataUri ? 'application/pdf' : undefined),
           profilePhotoDataUri: formState.profilePhotoDataUri || undefined,
           language: formState.language,
         };
@@ -208,7 +285,7 @@ export default function CareerCraftWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} />;
+        return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} isLoadingFile={loading}/>;
       case 2:
         return <CompatibilityAnalysisStep result={compatibilityResult} loading={loading} />;
       case 3:
@@ -221,7 +298,7 @@ export default function CareerCraftWizard() {
       case 4:
         return <JobSearchStep result={jobListingsResult} loading={loading} />;
       default:
-        return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} />;
+        return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} isLoadingFile={loading}/>;
     }
   };
 
