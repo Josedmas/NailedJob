@@ -113,21 +113,33 @@ export const extractTextFromFileTool = ai.defineTool(
       }
 
       const buffer = Buffer.from(base64Data, 'base64');
-      console.log('[extractTextFromFileTool] PDF buffer created from base64 data.');
+      console.log(`[extractTextFromFileTool] PDF buffer created. Length: ${buffer.length}`);
+      
+      if (buffer.length < 20) { // Heuristic: very small buffer likely means invalid PDF data
+        const errorMsg = `Error extracting text: PDF buffer is too small (length: ${buffer.length} bytes) after base64 decoding, likely malformed or invalid PDF.`;
+        console.error(`[extractTextFromFileTool] ${errorMsg}`);
+        return { extractedText: errorMsg };
+      }
       
       // Dynamically import pdf-parse
+      console.log('[extractTextFromFileTool] Attempting to dynamically import pdf-parse...');
       const pdfParser = (await import('pdf-parse')).default;
+      console.log('[extractTextFromFileTool] pdf-parse imported successfully.');
+      
+      console.log('[extractTextFromFileTool] Calling pdfParser with buffer...');
       const data = await pdfParser(buffer);
+      console.log('[extractTextFromFileTool] pdfParser processing finished.');
+
 
       if (!data || typeof data.text !== 'string') {
         const errorMsg = 'Error extracting text: pdf-parse failed to return valid data or text structure.';
-        console.error(`[extractTextFromFileTool] ${errorMsg} Data received from pdf-parse:`, data);
+        console.error(`[extractTextFromFileTool] ${errorMsg} Data received from pdf-parse:`, JSON.stringify(data, null, 2).substring(0, 300));
         return { extractedText: errorMsg };
       }
 
       const extractedText = data.text.trim();
       if (extractedText === "") {
-        console.warn('[extractTextFromFileTool] Successfully processed PDF with pdf-parse, but no text content was found.');
+        console.warn('[extractTextFromFileTool] Successfully processed PDF with pdf-parse, but no text content was found. PDF might be image-based or empty.');
         return { extractedText: "Error extracting text: No text content found in the uploaded PDF. The PDF might be image-based or empty." };
       }
       
@@ -135,20 +147,22 @@ export const extractTextFromFileTool = ai.defineTool(
       return { extractedText };
 
     } catch (error: unknown) {
-      let errorMessage = "PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR_PDF_PARSE"; // Default error code
+      let errorMessage = "PDF_PROCESSING_FAILED_INTERNAL_TOOL_ERROR_PDF_PARSE"; 
       let errorStack = "Stack not available";
 
       if (error instanceof Error) {
-        errorMessage = error.message;
+        errorMessage = error.message; // This should capture the "ENOENT..." message
         errorStack = error.stack || "Stack not available";
       } else if (typeof error === 'string') {
         errorMessage = error;
       } else if (typeof error === 'object' && error !== null) {
         errorMessage = JSON.stringify(error);
       }
-      console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing with pdf-parse:', errorMessage, 'Stack:', errorStack.substring(0,500)); // Log limited stack
+      // Log the specific error message and part of the stack.
+      console.error('[extractTextFromFileTool] CRITICAL ERROR during PDF processing with pdf-parse:', errorMessage, 'Stack:', errorStack.substring(0,500));
       // Ensure the returned error message starts with "Error extracting text:"
       return { extractedText: `Error extracting text: ${errorMessage}.` };
     }
   }
 );
+
