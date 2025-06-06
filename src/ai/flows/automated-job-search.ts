@@ -74,14 +74,52 @@ const searchJobsFlow = ai.defineFlow(
 
       if (llmResponse.output?.jobSearchResults && llmResponse.output.jobSearchResults.length > 0) {
         const allLinks = llmResponse.output.jobSearchResults.map(job => job.link).filter(link => !!link);
-        
-        // De-duplicate links
         const uniqueLinks = Array.from(new Set(allLinks));
+        const validatedLinks: string[] = [];
+
+        console.log(`[searchJobsFlow] Found ${uniqueLinks.length} unique links to validate.`);
+
+        for (const link of uniqueLinks) {
+          if (validatedLinks.length >= 10) break; // Stop if we already have 10 valid links
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 7000); // 7-second timeout
+
+          try {
+            console.log(`[searchJobsFlow] Validating link: ${link}`);
+            const response = await fetch(link, {
+              method: 'HEAD',
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+              },
+              signal: controller.signal,
+              redirect: 'follow', // Follow redirects
+            });
+            clearTimeout(timeoutId);
+
+            if (response.ok) { // response.ok is true if status is 200-299
+              validatedLinks.push(link);
+              console.log(`[searchJobsFlow] Link OK: ${link} (Status: ${response.status})`);
+            } else {
+              console.warn(`[searchJobsFlow] Link NOT OK (Status ${response.status}): ${link}`);
+            }
+          } catch (fetchError: any) {
+            clearTimeout(timeoutId);
+            if (fetchError.name === 'AbortError') {
+              console.error(`[searchJobsFlow] Timeout fetching link ${link}`);
+            } else {
+              console.error(`[searchJobsFlow] Error fetching link ${link}:`, fetchError.message);
+            }
+          }
+        }
         
-        return { jobPostings: uniqueLinks.slice(0, 10) }; // Ensure limit after de-duplication
+        console.log(`[searchJobsFlow] Returning ${validatedLinks.length} validated links.`);
+        return { jobPostings: validatedLinks.slice(0, 10) }; // Ensure limit after validation
       }
       
-      console.warn('[searchJobsFlow] LLM response output was missing jobSearchResults or it was empty:', llmResponse);
+      console.warn('[searchJobsFlow] LLM response output was missing jobSearchResults or it was empty:', JSON.stringify(llmResponse.output, null, 2).substring(0,300));
       return { jobPostings: [] }; 
 
     } catch (error: any) {
