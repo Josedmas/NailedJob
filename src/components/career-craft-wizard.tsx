@@ -19,11 +19,7 @@ import { automatedJobSearch } from '@/ai/flows/automated-job-search';
 
 import { useLanguage } from '@/contexts/language-context';
 
-// Import pdfjs-dist
 import * as pdfjsLib from 'pdfjs-dist';
-// Specify the workerSrc for pdfjs-dist. Required for client-side usage.
-// Use a CDN version for simplicity in this environment.
-// In a production app, you might host this worker file yourself.
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 }
@@ -59,8 +55,11 @@ export default function CareerCraftWizard() {
   const [formState, setFormState] = useState<CareerCraftFormState>(initialFormState);
   const [compatibilityResult, setCompatibilityResult] = useState<CompatibilityOutput | null>(null);
   const [tailoredResumeResult, setTailoredResumeResult] = useState<AIResumeBuilderOutput | null>(null);
+  const [initialCompatibilityResultForStep3, setInitialCompatibilityResultForStep3] = useState<CompatibilityOutput | null>(null);
+  const [newCompatibilityAnalysisResultForStep3, setNewCompatibilityAnalysisResultForStep3] = useState<CompatibilityOutput | null>(null);
   const [jobListingsResult, setJobListingsResult] = useState<AutomatedJobSearchOutput | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>(''); 
   const { toast } = useToast();
 
   useEffect(() => {
@@ -80,8 +79,9 @@ export default function CareerCraftWizard() {
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setLoading(true);
       if (e.target.name === 'profilePhoto') {
+        setLoading(true); // For profile photo as well, to be consistent
+        setLoadingMessage(t('processingFileMessage') || "Processing file...");
         const reader = new FileReader();
         reader.onloadend = () => {
           setFormState(prev => ({
@@ -90,49 +90,56 @@ export default function CareerCraftWizard() {
             profilePhotoName: file.name,
           }));
           setLoading(false);
+          setLoadingMessage('');
         };
         reader.onerror = () => {
             toast({ variant: "destructive", title: "File Read Error", description: "Could not read profile photo."});
             setLoading(false);
+            setLoadingMessage('');
         }
         reader.readAsDataURL(file);
       } else if (e.target.name === 'resumeFile') {
+        setLoading(true);
+        setLoadingMessage(t('processingFileMessage') || "Processing file...");
+        setFormState(prev => ({ ...prev, resumeFileName: file.name, resumeFileMimeType: file.type || 'application/pdf', resumeText: '' , resumeFileDataUri: ''})); // Clear previous text/URI
+
         if (file.type !== 'application/pdf') {
           toast({ variant: "destructive", title: t('fileErrorTitle'), description: "Please select a valid PDF file for the resume." });
-          setLoading(false);
-          e.target.value = ''; // Reset file input
+          setLoading(false); setLoadingMessage('');
+          e.target.value = ''; 
           return;
         }
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        if (file.size > 10 * 1024 * 1024) { 
             toast({ variant: "destructive", title: t('fileErrorTitle'), description: "Resume PDF is too large. Maximum 10MB." });
-            setLoading(false);
-            e.target.value = ''; // Reset file input
+            setLoading(false); setLoadingMessage('');
+            e.target.value = ''; 
             return;
         }
 
+        let dataUri = '';
         const dataUriReader = new FileReader();
-        dataUriReader.onloadend = () => {
-             setFormState(prev => ({
-                ...prev,
-                resumeFileDataUri: dataUriReader.result as string, // Store Data URI
-                resumeFileName: file.name,
-                resumeFileMimeType: file.type || 'application/pdf',
-            }));
-        };
-        dataUriReader.onerror = () => {
-             toast({ variant: "destructive", title: "File Read Error", description: "Could not read resume file as Data URI."});
-             // Continue to text extraction if possible
-        }
-        dataUriReader.readAsDataURL(file);
-
+        const dataUriPromise = new Promise<void>((resolve, reject) => {
+            dataUriReader.onloadend = () => {
+                dataUri = dataUriReader.result as string;
+                resolve();
+            };
+            dataUriReader.onerror = () => {
+                toast({ variant: "destructive", title: "File Read Error", description: "Could not read resume file as Data URI."});
+                reject(new Error("Data URI read error"));
+            }
+            dataUriReader.readAsDataURL(file);
+        });
 
         const arrayBufferReader = new FileReader();
         arrayBufferReader.onload = async (event) => {
           try {
+            await dataUriPromise; // Ensure Data URI is read first
+            setFormState(prev => ({...prev, resumeFileDataUri: dataUri}));
+
             const arrayBuffer = event.target?.result as ArrayBuffer;
             if (!arrayBuffer) {
                  toast({ variant: "destructive", title: "File Read Error", description: "Could not read PDF content for text extraction."});
-                 setLoading(false);
+                 setLoading(false); setLoadingMessage('');
                  return;
             }
             const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -144,7 +151,7 @@ export default function CareerCraftWizard() {
             }
             setFormState(prev => ({
               ...prev,
-              resumeText: fullText.trim(), // Set extracted text
+              resumeText: fullText.trim(), 
             }));
             toast({ title: "Resume Processed", description: `Successfully extracted text from ${file.name}.` });
           } catch (pdfError: any) {
@@ -152,21 +159,20 @@ export default function CareerCraftWizard() {
             toast({
               variant: "destructive",
               title: "PDF Processing Error",
-              description: `Could not extract text from PDF: ${pdfError.message}. Please try pasting the text manually or try a different PDF.`,
+              description: `Could not extract text from PDF: ${pdfError.message}. Please try pasting the text manually or try a different PDF. The uploaded PDF is still available if server-side extraction is attempted.`,
             });
-             // Keep existing resumeText if any, or set to empty
-            setFormState(prev => ({ ...prev, resumeText: prev.resumeText || '' }));
+            setFormState(prev => ({ ...prev, resumeText: '' })); // Clear text if extraction fails
           } finally {
             setLoading(false);
+            setLoadingMessage('');
           }
         };
         arrayBufferReader.onerror = () => {
             toast({ variant: "destructive", title: "File Read Error", description: "Could not read resume file for text extraction."});
             setLoading(false);
+            setLoadingMessage('');
         }
         arrayBufferReader.readAsArrayBuffer(file);
-      } else {
-        setLoading(false); // Should not happen
       }
     }
   };
@@ -178,29 +184,16 @@ export default function CareerCraftWizard() {
     setFormState({...initialFormState, language: resumeLang});
     setCompatibilityResult(null);
     setTailoredResumeResult(null);
+    setInitialCompatibilityResultForStep3(null);
+    setNewCompatibilityAnalysisResultForStep3(null);
     setJobListingsResult(null);
     setLoading(false);
+    setLoadingMessage('');
   };
 
-  const callAI = async (action: () => Promise<void>) => {
-    setLoading(true);
-    try {
-      await action();
-    } catch (error) {
-      console.error("AI call failed:", error);
-      toast({
-        variant: "destructive",
-        title: t('aiErrorTitle') || "AI Error",
-        description: (error instanceof Error ? error.message : t('aiUnexpectedErrorDescription') || "An unexpected error occurred with the AI service."),
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleNextStep = async () => {
     if (currentStep === 1) {
-      // Prioritize formState.resumeText. If it's empty, then check resumeFileDataUri for server-side fallback.
       if ((!formState.jobOfferText && !formState.jobOfferUrl) || (!formState.resumeText && !formState.resumeFileDataUri)) {
         toast({
             variant: "destructive",
@@ -209,7 +202,6 @@ export default function CareerCraftWizard() {
         });
         return;
       }
-       // If resumeFileDataUri is present but mimeType is not 'application/pdf' (should be caught by client-side check too)
        if (formState.resumeFileDataUri && formState.resumeFileMimeType && formState.resumeFileMimeType !== 'application/pdf') {
         toast({
           variant: "destructive",
@@ -218,13 +210,12 @@ export default function CareerCraftWizard() {
         });
         return;
       }
-
-      await callAI(async () => {
+      setLoading(true);
+      setLoadingMessage(t('analyzingCompatibilityMessage'));
+      try {
         const input: CompatibilityInput = {
             jobDescription: formState.jobOfferText || undefined,
             jobOfferUrl: formState.jobOfferUrl || undefined,
-            // If resumeText is populated (either pasted or client-extracted), use it.
-            // Otherwise, pass resumeFileDataUri for server-side tool to attempt extraction.
             resume: formState.resumeText || undefined,
             resumeFileDataUri: formState.resumeText ? undefined : (formState.resumeFileDataUri || undefined),
             resumeFileName: formState.resumeFileName || undefined,
@@ -234,7 +225,17 @@ export default function CareerCraftWizard() {
         const result = await analyzeCompatibility(input);
         setCompatibilityResult(result);
         setCurrentStep(2);
-      });
+      } catch (error) {
+        console.error("AI call failed (Step 1 to 2):", error);
+        toast({
+            variant: "destructive",
+            title: t('aiErrorTitle') || "AI Error",
+            description: (error instanceof Error ? error.message : t('aiUnexpectedErrorDescription') || "An unexpected error occurred with the AI service."),
+        });
+      } finally {
+        setLoading(false);
+        setLoadingMessage('');
+      }
     } else if (currentStep === 2) {
       if (formState.resumeFileDataUri && formState.resumeFileMimeType && formState.resumeFileMimeType !== 'application/pdf' && !formState.resumeText) {
          toast({
@@ -244,8 +245,10 @@ export default function CareerCraftWizard() {
         });
         return;
       }
-      await callAI(async () => {
-        const input: AIResumeBuilderInput = {
+      setLoading(true); 
+      setLoadingMessage(t('buildingResumeMessage'));
+      try {
+        const builderInput: AIResumeBuilderInput = {
           jobDescription: formState.jobOfferText || undefined,
           jobOfferUrl: formState.jobOfferUrl || undefined,
           resume: formState.resumeText || undefined,
@@ -254,10 +257,36 @@ export default function CareerCraftWizard() {
           profilePhotoDataUri: formState.profilePhotoDataUri || undefined,
           language: formState.language,
         };
-        const result = await aiResumeBuilder(input);
-        setTailoredResumeResult(result);
+        const builderResult = await aiResumeBuilder(builderInput);
+        setTailoredResumeResult(builderResult);
+
+        if (builderResult?.tailoredResume) {
+          setLoadingMessage(t('analyzingNewResumeCompatibility')); 
+          const newAnalysisInput: CompatibilityInput = {
+            jobDescription: formState.jobOfferText || undefined,
+            jobOfferUrl: formState.jobOfferUrl || undefined,
+            resume: builderResult.tailoredResume, 
+            language: formState.language,
+          };
+          const newAnalysis = await analyzeCompatibility(newAnalysisInput);
+          setNewCompatibilityAnalysisResultForStep3(newAnalysis);
+        } else {
+          setNewCompatibilityAnalysisResultForStep3(null);
+          toast({ variant: "warning", title: "Resume Building Issue", description: "AI could not generate a tailored resume. New compatibility cannot be assessed."});
+        }
+        setInitialCompatibilityResultForStep3(compatibilityResult); 
         setCurrentStep(3);
-      });
+      } catch (error) {
+        console.error("AI call failed (Step 2 to 3):", error);
+        toast({
+            variant: "destructive",
+            title: t('aiErrorTitle') || "AI Error",
+            description: (error instanceof Error ? error.message : t('aiUnexpectedErrorDescription') || "An unexpected error occurred with the AI service."),
+        });
+      } finally {
+        setLoading(false);
+        setLoadingMessage('');
+      }
     } else if (currentStep === 3) {
       if (!tailoredResumeResult?.tailoredResume) {
          toast({
@@ -267,12 +296,24 @@ export default function CareerCraftWizard() {
         });
         return;
       }
-      await callAI(async () => {
+      setLoading(true);
+      setLoadingMessage(t('searchingJobsMessage'));
+      try {
         const input: AutomatedJobSearchInput = { resume: tailoredResumeResult.tailoredResume };
         const result = await automatedJobSearch(input);
         setJobListingsResult(result);
         setCurrentStep(4);
-      });
+      } catch (error) {
+         console.error("AI call failed (Step 3 to 4):", error);
+        toast({
+            variant: "destructive",
+            title: t('aiErrorTitle') || "AI Error",
+            description: (error instanceof Error ? error.message : t('aiUnexpectedErrorDescription') || "An unexpected error occurred with the AI service."),
+        });
+      } finally {
+        setLoading(false);
+        setLoadingMessage('');
+      }
     }
   };
 
@@ -285,20 +326,23 @@ export default function CareerCraftWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} isLoadingFile={loading}/>;
+        return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} isLoadingFile={loading && !!loadingMessage}/>;
       case 2:
         return <CompatibilityAnalysisStep result={compatibilityResult} loading={loading} />;
       case 3:
         return <ResumeBuilderStep 
                   result={tailoredResumeResult} 
-                  loading={loading} 
+                  loading={loading}
+                  loadingMessageFromWizard={loadingMessage} 
                   profilePhotoDataUri={formState.profilePhotoDataUri} 
                   resumeLanguage={formState.language}
+                  initialCompatibilityResult={initialCompatibilityResultForStep3}
+                  newCompatibilityAnalysisResult={newCompatibilityAnalysisResultForStep3}
                 />;
       case 4:
         return <JobSearchStep result={jobListingsResult} loading={loading} />;
       default:
-        return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} isLoadingFile={loading}/>;
+        return <InformationGatheringStep formState={formState} onInputChange={handleInputChange} onFileChange={handleFileChange} isLoadingFile={loading && !!loadingMessage}/>;
     }
   };
 
@@ -326,12 +370,12 @@ export default function CareerCraftWizard() {
             <ArrowLeft className="mr-2 h-4 w-4" /> {t('previousButton')}
           </Button>
         )}
-        {currentStep === 1 && <div></div>} {/* Placeholder to keep right button aligned */}
+        {currentStep === 1 && <div></div>} 
 
         {currentStep < 4 ? (
           <Button onClick={handleNextStep} disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {currentStep === 1 ? t('analyzeButton') : currentStep === 2 ? t('buildResumeButton') : t('findJobsButton')}
+            {loading ? loadingMessage : (currentStep === 1 ? t('analyzeButton') : currentStep === 2 ? t('buildResumeButton') : t('findJobsButton'))}
             {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         ) : (

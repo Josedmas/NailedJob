@@ -47,17 +47,20 @@ export const translations: Record<Locale, Record<string, string>> = {
     languageForResumeLabel: 'Language for Resume',
     selectLanguagePlaceholder: 'Select language',
     orSeparator: 'OR',
-    // Toasts / Errors
+    // Toasts / Errors / Loading
     missingInfoTitle: 'Missing Information',
     missingInfoDescription: 'Please provide job offer (text or URL) and resume (text or PDF).',
     missingInfoDescriptionEnhanced: 'Please provide job offer (text or URL) and resume (text or PDF).',
     fileErrorTitle: 'File Error',
     mimeTypeMissingDescription: 'Could not determine file type for the uploaded resume. Please try again.',
-    mimeTypeMissingDescriptionBuild: 'Resume file type is missing. Cannot build resume.',
+    mimeTypeMissingDescriptionBuild: 'Resume file type is missing or not PDF. Cannot build resume.',
     aiErrorTitle: 'AI Error',
     aiUnexpectedErrorDescription: 'An unexpected error occurred with the AI service.',
     missingResumeTitle: 'Missing Resume',
     missingResumeDescription: 'No tailored resume available to search for jobs.',
+    analyzingNewResumeCompatibility: 'Analyzing AI resume compatibility...',
+    improvementDataUnavailable: 'New compatibility data unavailable.',
+    processingFileMessage: "Processing file...",
     // Languages for select
     langEnglish: 'English',
     langSpanish: 'Spanish',
@@ -75,6 +78,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     pdfDownloadNote: "The PDF version attempts to match a professional resume style.",
     explanationOfModificationsTitle: "Explanation of Modifications:",
     happyWithResumePrompt: "Happy with your new resume? Click \"Find Jobs\" to discover opportunities matching this CV.",
+    compatibilityImprovementTitle: "Compatibility Improvement",
+    initialCompatibilityLabel: "Initial Compatibility:",
+    newCompatibilityLabel: "New (AI Resume):",
+    improvementLabel: "Improvement:",
+    na: "N/A",
     // CompatibilityAnalysisStep
     analyzingCompatibilityMessage: "Analyzing compatibility...",
     waitingForAnalysisTitle: "Waiting for Analysis",
@@ -108,15 +116,14 @@ export const translations: Record<Locale, Record<string, string>> = {
     sectionTitle_ContactInformation: "CONTACT INFORMATION",
     sectionTitle_ProfessionalProfile: "PROFESSIONAL PROFILE",
     sectionTitle_WorkExperience: "WORK EXPERIENCE",
-    sectionTitle_Education: "EDUCATION", // Changed from AcademicTraining for consistency with new prompt
+    sectionTitle_Education: "EDUCATION", 
     sectionTitle_Skills: "SKILLS",
     sectionTitle_Languages: "LANGUAGES",
     sectionTitle_Interests: "INTERESTS",
-    // Spanish translations for new/updated section titles
     sectionTitle_ContactInformation_es: "DETALLES PERSONALES",
     sectionTitle_ProfessionalProfile_es: "PERFIL PROFESIONAL",
     sectionTitle_WorkExperience_es: "EXPERIENCIA LABORAL",
-    sectionTitle_Education_es: "FORMACIÓN", // Changed from Formación Académica
+    sectionTitle_Education_es: "FORMACIÓN", 
     sectionTitle_Skills_es: "HABILIDADES",
     sectionTitle_Languages_es: "IDIOMAS",
     sectionTitle_Interests_es: "INTERESES",
@@ -165,7 +172,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     languageForResumeLabel: 'Idioma para el Currículum',
     selectLanguagePlaceholder: 'Seleccionar idioma',
     orSeparator: 'O',
-    // Toasts / Errors
+    // Toasts / Errors / Loading
     missingInfoTitle: 'Información Faltante',
     missingInfoDescription: 'Por favor, proporcione la oferta de empleo (texto o URL) y el currículum (texto o PDF).',
     missingInfoDescriptionEnhanced: 'Por favor, proporcione la oferta de empleo (texto o URL) y el currículum (texto o PDF).',
@@ -176,6 +183,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     aiUnexpectedErrorDescription: 'Ocurrió un error inesperado con el servicio de IA.',
     missingResumeTitle: 'Falta Currículum',
     missingResumeDescription: 'No hay currículum personalizado disponible para buscar empleos.',
+    analyzingNewResumeCompatibility: 'Analizando compatibilidad del currículum IA...',
+    improvementDataUnavailable: 'Datos de nueva compatibilidad no disponibles.',
+    processingFileMessage: "Procesando archivo...",
     // Languages for select
     langEnglish: 'Inglés',
     langSpanish: 'Español',
@@ -193,6 +203,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     pdfDownloadNote: "La versión PDF intenta asemejarse a un estilo de currículum profesional.",
     explanationOfModificationsTitle: "Explicación de las Modificaciones:",
     happyWithResumePrompt: "Contento con tu nuevo currículum? Haz clic en \"Buscar Empleos\" para descubrir oportunidades que coincidan con este CV.",
+    compatibilityImprovementTitle: "Mejora de Compatibilidad",
+    initialCompatibilityLabel: "Compatibilidad Inicial:",
+    newCompatibilityLabel: "Nueva (CV con IA):",
+    improvementLabel: "Mejora:",
+    na: "N/D",
     // CompatibilityAnalysisStep
     analyzingCompatibilityMessage: "Analizando compatibilidad...",
     waitingForAnalysisTitle: "Esperando Análisis",
@@ -226,7 +241,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     sectionTitle_ContactInformation: "DETALLES PERSONALES",
     sectionTitle_ProfessionalProfile: "PERFIL PROFESIONAL",
     sectionTitle_WorkExperience: "EXPERIENCIA LABORAL",
-    sectionTitle_Education: "FORMACIÓN", // Changed from Formación Académica
+    sectionTitle_Education: "FORMACIÓN", 
     sectionTitle_Skills: "HABILIDADES",
     sectionTitle_Languages: "IDIOMAS",
     sectionTitle_Interests: "INTERESES",

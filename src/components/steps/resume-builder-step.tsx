@@ -2,11 +2,13 @@
 "use client";
 
 import type { AIResumeBuilderOutput } from '@/ai/flows/ai-resume-builder';
+import type { CompatibilityOutput } from '@/ai/flows/resume-compatibility-analysis';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Wand2, FileType } from 'lucide-react';
+import { Download, FileText, Wand2, FileType, TrendingUp, CheckCircle, AlertTriangle, Info, ArrowRight } from 'lucide-react';
 import LoadingIndicator from '@/components/loading-indicator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import { jsPDF } from 'jspdf';
 import { useLanguage } from '@/contexts/language-context';
 import type { Locale } from '@/lib/translations';
@@ -14,21 +16,31 @@ import type { Locale } from '@/lib/translations';
 interface ResumeBuilderStepProps {
   result: AIResumeBuilderOutput | null;
   loading: boolean;
+  loadingMessageFromWizard?: string;
   profilePhotoDataUri?: string;
   resumeLanguage: string;
+  initialCompatibilityResult: CompatibilityOutput | null;
+  newCompatibilityAnalysisResult: CompatibilityOutput | null;
 }
 
-// Helper to safely get translated section title or use a default
 const getSectionTitle = (t: Function, key: string, lang: Locale, fallback: string): string => {
   const title = t(key, undefined, { lng: lang });
   return title === key ? fallback : title;
 };
 
-export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resumeLanguage }: ResumeBuilderStepProps) {
+export function ResumeBuilderStep({ 
+  result, 
+  loading, 
+  loadingMessageFromWizard,
+  profilePhotoDataUri, 
+  resumeLanguage,
+  initialCompatibilityResult,
+  newCompatibilityAnalysisResult 
+}: ResumeBuilderStepProps) {
   const { t } = useLanguage();
 
   if (loading) {
-    return <LoadingIndicator message={t('buildingResumeMessage') || "Building your tailored resume..."} />;
+    return <LoadingIndicator message={loadingMessageFromWizard || t('buildingResumeMessage')} />;
   }
 
   if (!result) {
@@ -45,6 +57,17 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
   }
 
   const { tailoredResume, explanation } = result;
+  const initialScore = initialCompatibilityResult?.compatibilityScore;
+  const newScore = newCompatibilityAnalysisResult?.compatibilityScore;
+  const improvement = (initialScore != null && newScore != null) ? newScore - initialScore : null;
+
+  const getProgressColor = (score: number | undefined) => {
+    if (score == null) return 'bg-muted';
+    if (score < 60) return 'bg-red-500';
+    if (score < 70) return 'bg-yellow-500';
+    if (score < 80) return 'bg-blue-500';
+    return 'bg-green-500';
+  };
 
   const handleDownloadText = () => {
     const blob = new Blob([tailoredResume], { type: 'text/plain;charset=utf-8' });
@@ -71,13 +94,13 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
 
     const leftColContentWidth = leftColWidth - margin; 
 
-    const leftColBGColor = [240, 243, 244]; // Very light gray
-    const sectionTitleTextLeftCol = [52, 73, 94]; // Dark blue/gray for left col titles
-    const bodyTextLeftCol = [86, 101, 115]; // Slightly lighter gray for left col body
+    const leftColBGColor = [240, 243, 244]; 
+    const sectionTitleTextLeftCol = [52, 73, 94]; 
+    const bodyTextLeftCol = [86, 101, 115]; 
 
-    const nameColor = [44, 62, 80]; // Dark blue/gray for name
-    const sectionTitleRightCol = [44, 62, 80]; // Dark blue/gray for right col titles
-    const bodyTextRightCol = [52, 73, 94]; // Standard text color for right col
+    const nameColor = [44, 62, 80]; 
+    const sectionTitleRightCol = [44, 62, 80]; 
+    const bodyTextRightCol = [52, 73, 94]; 
 
 
     let yLeft = margin;
@@ -90,10 +113,9 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
         currentPage++;
         yLeft = margin;
         yRight = margin;
-        // Redraw left column background on new page
         doc.setFillColor(leftColBGColor[0], leftColBGColor[1], leftColBGColor[2]);
         doc.rect(0, 0, leftColWidth, pageHeight, 'F');
-        return margin; // Reset Y for the current column
+        return margin; 
       }
       return currentY;
     };
@@ -105,7 +127,6 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     
     drawLeftColumnBackground();
 
-    // --- Parsing Logic ---
     const resumeLines = tailoredResume.split('\n').map(line => line.trim()).filter(line => line);
     const candidateFullName = resumeLines.length > 0 ? resumeLines.shift()?.trim() || "Candidate Name" : "Candidate Name";
     
@@ -132,7 +153,6 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
                 trimmedLineUpper.substring(sectionTitlesMap[key].length).trim().startsWith(':')) {
                 currentSectionKey = key;
                 sectionContent[currentSectionKey] = [];
-                // Remove the title part from the line if it's part of the same line
                 const contentAfterTitle = line.substring(sectionTitlesMap[key].length).replace(/^:\s*/, '').trim();
                 if (contentAfterTitle) {
                     sectionContent[currentSectionKey].push(contentAfterTitle);
@@ -146,21 +166,18 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
         }
     }
     
-    // --- LEFT COLUMN ---
     yLeft = addPageIfNeeded(yLeft, 0);
-    // Candidate Name (Left Column)
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(18);
     doc.setTextColor(nameColor[0], nameColor[1], nameColor[2]);
-    const nameLines = doc.splitTextToSize(candidateFullName.toUpperCase(), leftColContentWidth - 5); // Slightly less width for name
+    const nameLines = doc.splitTextToSize(candidateFullName.toUpperCase(), leftColContentWidth - 5); 
     nameLines.forEach((nameLine: string) => {
         yLeft = addPageIfNeeded(yLeft, 8);
         doc.text(nameLine, margin / 2 + 2, yLeft);
         yLeft += 7;
     });
-    yLeft += 3; // Space after name
+    yLeft += 3; 
     
-    // Profile Photo (Left Column)
     if (profilePhotoDataUri) {
         yLeft = addPageIfNeeded(yLeft, 40);
         const photoSize = 35;
@@ -184,7 +201,6 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
         }
     }
     
-    // Contact Information (Left Column)
     const contactInfoContent = sectionContent['CONTACT_INFORMATION'] || [];
     if (contactInfoContent.length > 0) {
         yLeft = addPageIfNeeded(yLeft, 8);
@@ -258,13 +274,10 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     drawLeftSection('LANGUAGES');
     drawLeftSection('INTERESTS');
 
-
-    // --- RIGHT COLUMN ---
     const drawRightSection = (key: string) => {
         const content = sectionContent[key] || [];
         const title = sectionTitlesMap[key];
         const allSectionTitlesForParsing = Object.values(sectionTitlesMap);
-
 
         if (content.length > 0 || 
             (key === 'WORK_EXPERIENCE' && tailoredResume.toUpperCase().includes(title.toUpperCase())) ||
@@ -278,11 +291,10 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
             doc.text(title.toUpperCase(), rightColX, yRight);
             yRight += 1; 
             
-            doc.setDrawColor(189, 195, 199); // Light gray line
+            doc.setDrawColor(189, 195, 199); 
             doc.setLineWidth(0.3);
             doc.line(rightColX, yRight, rightColX + rightColWidth, yRight); 
             yRight += 6;
-
 
             let isFirstInSubSection = true; 
 
@@ -299,12 +311,8 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
                 doc.setFontSize(itemFontSize);
                 doc.setFont('Helvetica', defaultStyle);
 
-                // Heuristic for experience/education item titles
-                // An item title is likely if it's the first line after the main section title,
-                // or if the *previous* line was a date or a blank line indicating end of previous description.
                 const isLikelyActualTitle = isFirstInSubSection || 
                                          (i > 0 && (content[i-1].match(/\d{4}\s*(-|–|to|a)\s*(\d{4}|Present|Actual|Hoy|Actualidad)/i) || content[i-1].trim() === "" || allSectionTitlesForParsing.some(st => content[i-1]?.toUpperCase().includes(st.toUpperCase()) ) ) );
-
 
                 const isLikelyDateLine = line.match(/\d{4}\s*(-|–|to|a)\s*(\d{4}|Present|Actual|Hoy|Actualidad)/i) || 
                                        line.match(/\b(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic|Jan|Apr|Jul|Aug|Sept|Dec)\b\.?\s\d{4}/i);
@@ -318,19 +326,18 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
 
                     if (lastCommaIndex > 0 && line.substring(lastCommaIndex + 1).trim().length > 0) {
                         const textBeforeLastComma = line.substring(0, lastCommaIndex);
-                        if (textBeforeLastComma.includes(',') || line.split(',').length >= 2) { // "Pos, Comp, Loc" or "Pos, Comp" with Loc as third part
+                        if (textBeforeLastComma.includes(',') || line.split(',').length >= 2) { 
                              positionAndCompany = textBeforeLastComma.trim();
-                             location = line.substring(lastCommaIndex).trim(); // Includes the comma: ", Location"
-                        } else { // Probably "Title at Company, Location" - bold all up to last comma
+                             location = line.substring(lastCommaIndex).trim(); 
+                        } else { 
                              positionAndCompany = textBeforeLastComma.trim();
                              location = line.substring(lastCommaIndex).trim();
                         }
                     }
-                    // If no suitable last comma, positionAndCompany remains the whole line, location is empty.
 
                     let currentX = rightColX;
                     doc.setFont('Helvetica', 'bold');
-                    doc.setFontSize(itemFontSize + 0.5); // Slightly larger for job/company title
+                    doc.setFontSize(itemFontSize + 0.5); 
 
                     const boldWrapped = doc.splitTextToSize(positionAndCompany, rightColWidth);
                     for (let idx = 0; idx < boldWrapped.length; idx++) {
@@ -347,7 +354,7 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
                         doc.setFontSize(itemFontSize); 
                         const spaceForLocation = rightColWidth - (currentX - rightColX);
 
-                        if (currentX === rightColX || spaceForLocation < doc.getTextWidth(" ") + 5 ) { // If bold part wrapped fully or no space left
+                        if (currentX === rightColX || spaceForLocation < doc.getTextWidth(" ") + 5 ) { 
                             yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
                             currentX = rightColX;
                         }
@@ -383,16 +390,16 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
                     yRight = addPageIfNeeded(yRight, itemLineHeight);
                     doc.setFont('Helvetica', 'italic');
                     doc.setFontSize(dateFontSize);
-                    doc.setTextColor(128, 128, 128); // Gray for dates
+                    doc.setTextColor(128, 128, 128); 
                     const textLines = doc.splitTextToSize(line, rightColWidth);
                     textLines.forEach((l:string) => {
                         doc.text(l, rightColX, yRight);
                         yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
                     });
-                    if (textLines.length > 0) yRight -= itemLineHeight; // Adjust if new lines were added
+                    if (textLines.length > 0) yRight -= itemLineHeight; 
                     yRight += itemLineHeight;
-                    doc.setTextColor(bodyTextRightCol[0], bodyTextRightCol[1], bodyTextRightCol[2]); // Reset color
-                    isFirstInSubSection = false; // After a date, the next line is likely description
+                    doc.setTextColor(bodyTextRightCol[0], bodyTextRightCol[1], bodyTextRightCol[2]); 
+                    isFirstInSubSection = false; 
                 
                 } else if (key === 'SKILLS' && (line.toLowerCase().startsWith('técnicas:') || line.toLowerCase().startsWith('technical:') || line.toLowerCase().startsWith('habilidades técnicas:'))) {
                     yRight = addPageIfNeeded(yRight + 2, itemLineHeight);
@@ -409,7 +416,7 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
                     yRight += itemLineHeight;
                     isFirstInSubSection = false;
                 }
-                else { // Description or other content
+                else { 
                     yRight = addPageIfNeeded(yRight, itemLineHeight);
                     doc.setFont('Helvetica', 'normal');
                     doc.setFontSize(descriptionFontSize);
@@ -420,11 +427,10 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
                     });
                      if (textLines.length > 0) yRight -= itemLineHeight; 
                      yRight += itemLineHeight;
-                    // After a description line, the next line could be a new item title.
                     if (line.trim() !== "") isFirstInSubSection = true; 
                 }
             }
-            yRight += 5; // Space after section
+            yRight += 5; 
         }
     };
     
@@ -443,6 +449,60 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
         <CardDescription>{t('aiCraftedResumeDescription')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {initialCompatibilityResult && (
+          <Card className="mb-6 bg-card border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl flex items-center">
+                <TrendingUp className="mr-2 h-5 w-5 text-green-500" />
+                {t('compatibilityImprovementTitle')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">{t('initialCompatibilityLabel')}</span>
+                <div className="flex items-center">
+                  <span className={`font-semibold text-lg mr-2 ${initialScore != null && initialScore < 60 ? 'text-red-500' : initialScore != null && initialScore < 70 ? 'text-yellow-500' : 'text-foreground'}`}>
+                    {initialScore != null ? `${initialScore}%` : t('na')}
+                  </span>
+                  {initialScore != null && <Progress value={initialScore} className="w-24 h-2.5" indicatorClassName={getProgressColor(initialScore)} />}
+                </div>
+              </div>
+              
+              {newCompatibilityAnalysisResult ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{t('newCompatibilityLabel')}</span>
+                    <div className="flex items-center">
+                       <span className={`font-semibold text-lg mr-2 ${newScore != null && newScore < 60 ? 'text-red-500' : newScore != null && newScore < 70 ? 'text-yellow-500' : newScore != null && newScore >= 80 ? 'text-green-500' : 'text-foreground'}`}>
+                        {newScore != null ? `${newScore}%` : t('na')}
+                      </span>
+                      {newScore != null && <Progress value={newScore} className="w-24 h-2.5" indicatorClassName={getProgressColor(newScore)} />}
+                    </div>
+                  </div>
+                  {improvement != null && (
+                    <div className="flex items-center justify-between pt-2 border-t border-dashed">
+                      <span className="font-medium">{t('improvementLabel')}</span>
+                      <span className={`font-bold text-xl ${improvement > 0 ? 'text-green-500' : improvement < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                        {improvement > 0 ? `+${improvement}%` : `${improvement}%`}
+                        {improvement > 0 && <CheckCircle className="inline ml-1 h-5 w-5" />}
+                        {improvement < 0 && <AlertTriangle className="inline ml-1 h-5 w-5" />}
+                        {improvement === 0 && <Info className="inline ml-1 h-5 w-5" />}
+                      </span>
+                    </div>
+                  )}
+                  {newCompatibilityAnalysisResult.explanation && (
+                     <p className="text-xs text-muted-foreground pt-1">
+                        <span className="font-semibold">{t('aiExplanationLabel')}: </span>{newCompatibilityAnalysisResult.explanation.substring(0,150)}...
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-muted-foreground py-2">{t('improvementDataUnavailable')}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <div>
           <h3 className="text-lg font-semibold text-foreground mb-2">{t('tailoredResumeContentTitle')}</h3>
           <ScrollArea className="h-96 w-full rounded-md border p-4 bg-muted/50">
@@ -472,4 +532,3 @@ export function ResumeBuilderStep({ result, loading, profilePhotoDataUri, resume
     </Card>
   );
 }
-
