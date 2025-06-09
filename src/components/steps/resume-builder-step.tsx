@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react"; // Added React import
 import type { AIResumeBuilderOutput } from '@/ai/flows/ai-resume-builder';
 import type { CompatibilityOutput } from '@/ai/flows/resume-compatibility-analysis';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
