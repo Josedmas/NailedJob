@@ -81,7 +81,7 @@ export default function CareerCraftWizard() {
     const file = e.target.files?.[0];
     if (file) {
       if (e.target.name === 'profilePhoto') {
-        setLoading(true); 
+        setLoading(true);
         setLoadingMessage(t('processingFileMessage') || "Processing file...");
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -102,7 +102,7 @@ export default function CareerCraftWizard() {
       } else if (e.target.name === 'resumeFile') {
         setLoading(true);
         setLoadingMessage(t('processingFileMessage') || "Processing file...");
-        setFormState(prev => ({ ...prev, resumeFileName: file.name, resumeFileMimeType: file.type || 'application/pdf', resumeText: '' , resumeFileDataUri: ''})); 
+        setFormState(prev => ({ ...prev, resumeFileName: file.name, resumeFileMimeType: file.type || 'application/pdf', resumeText: '' , resumeFileDataUri: ''}));
 
         if (file.type !== 'application/pdf') {
           toast({ variant: "destructive", title: t('fileErrorTitle'), description: "Please select a valid PDF file for the resume." });
@@ -134,7 +134,7 @@ export default function CareerCraftWizard() {
         const arrayBufferReader = new FileReader();
         arrayBufferReader.onload = async (event) => {
           try {
-            await dataUriPromise; 
+            await dataUriPromise;
             setFormState(prev => ({...prev, resumeFileDataUri: dataUri}));
 
             const arrayBuffer = event.target?.result as ArrayBuffer;
@@ -162,7 +162,7 @@ export default function CareerCraftWizard() {
               title: "PDF Processing Error",
               description: `Could not extract text from PDF: ${pdfError.message}. Please try pasting the text manually or try a different PDF. The uploaded PDF is still available if server-side extraction is attempted.`,
             });
-            setFormState(prev => ({ ...prev, resumeText: '' })); 
+            setFormState(prev => ({ ...prev, resumeText: '' }));
           } finally {
             setLoading(false);
             setLoadingMessage('');
@@ -191,6 +191,59 @@ export default function CareerCraftWizard() {
     setJobListingsResult(null);
     setLoading(false);
     setLoadingMessage('');
+  };
+
+  const handleRegenerateResume = async () => {
+    if (!formState.jobOfferText && !formState.jobOfferUrl) {
+      toast({ variant: "destructive", title: t('missingInfoTitle'), description: "Job offer information is missing to regenerate resume." });
+      return;
+    }
+    if (!formState.resumeText && !formState.resumeFileDataUri) {
+      toast({ variant: "destructive", title: t('missingInfoTitle'), description: "Original resume information is missing to regenerate." });
+      return;
+    }
+
+    setLoading(true);
+    setLoadingMessage(t('regeneratingResumeMessage'));
+    try {
+      const builderInput: AIResumeBuilderInput = {
+        jobDescription: formState.jobOfferText || undefined,
+        jobOfferUrl: formState.jobOfferUrl || undefined,
+        resume: formState.resumeText || undefined,
+        resumeFileDataUri: formState.resumeText ? undefined : (formState.resumeFileDataUri || undefined),
+        resumeFileMimeType: formState.resumeText ? undefined : (formState.resumeFileDataUri ? 'application/pdf' : undefined),
+        profilePhotoDataUri: formState.profilePhotoDataUri || undefined,
+        language: formState.language,
+      };
+      const builderResult = await aiResumeBuilder(builderInput);
+      setTailoredResumeResult(builderResult);
+      setEditedTailoredResumeText(builderResult?.tailoredResume || '');
+
+      if (builderResult?.tailoredResume) {
+        setLoadingMessage(t('analyzingNewResumeCompatibility'));
+        const newAnalysisInput: CompatibilityInput = {
+          jobDescription: formState.jobOfferText || undefined,
+          jobOfferUrl: formState.jobOfferUrl || undefined,
+          resume: builderResult.tailoredResume,
+          language: formState.language,
+        };
+        const newAnalysis = await analyzeCompatibility(newAnalysisInput);
+        setNewCompatibilityAnalysisResultForStep3(newAnalysis);
+      } else {
+        setNewCompatibilityAnalysisResultForStep3(null);
+        toast({ variant: "warning", title: "Resume Regeneration Issue", description: "AI could not regenerate a tailored resume. New compatibility cannot be assessed."});
+      }
+    } catch (error) {
+      console.error("AI call failed (Regenerate Resume):", error);
+      toast({
+          variant: "destructive",
+          title: t('aiErrorTitle') || "AI Error",
+          description: (error instanceof Error ? error.message : t('aiUnexpectedErrorDescription') || "An unexpected error occurred with the AI service."),
+      });
+    } finally {
+      setLoading(false);
+      setLoadingMessage('');
+    }
   };
 
 
@@ -278,7 +331,7 @@ export default function CareerCraftWizard() {
           setNewCompatibilityAnalysisResultForStep3(null);
           toast({ variant: "warning", title: "Resume Building Issue", description: "AI could not generate a tailored resume. New compatibility cannot be assessed."});
         }
-        setInitialCompatibilityResultForStep3(compatibilityResult);
+        setInitialCompatibilityResultForStep3(compatibilityResult); // Save original compatibility from Step 2
         setCurrentStep(3);
       } catch (error) {
         console.error("AI call failed (Step 2 to 3):", error);
@@ -345,6 +398,7 @@ export default function CareerCraftWizard() {
                   resumeLanguage={formState.language}
                   initialCompatibilityResult={initialCompatibilityResultForStep3}
                   newCompatibilityAnalysisResult={newCompatibilityAnalysisResultForStep3}
+                  onRegenerateResume={handleRegenerateResume}
                 />;
       case 4:
         return <JobSearchStep result={jobListingsResult} loading={loading} />;

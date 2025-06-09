@@ -68,6 +68,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     langGerman: 'German',
     // ResumeBuilderStep
     buildingResumeMessage: "Building your tailored resume...",
+    regeneratingResumeMessage: "Regenerating resume...",
     tailoredResumeTitle: "Tailored Resume",
     aiGeneratedResumePlaceholder: "Your AI-generated resume will appear here. You can edit it directly.",
     aiCraftedResumeTitle: "Your AI-Crafted Resume",
@@ -75,6 +76,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     tailoredResumeContentTitle: "Tailored Resume Content (Editable):",
     downloadAsTextButton: "Download as Text",
     downloadAsPdfButton: "Download as PDF",
+    regenerateResumeButton: "Regenerate Resume",
     pdfDownloadNote: "The PDF version attempts to match a professional resume style using the content above.",
     explanationOfModificationsTitle: "Explanation of Modifications:",
     happyWithResumePrompt: "Happy with your new resume? Click \"Find Jobs\" to discover opportunities matching this CV.",
@@ -83,7 +85,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     newCompatibilityLabel: "New (AI Resume):",
     improvementLabel: "Improvement:",
     na: "N/A",
-    editableResumeNote: "You can edit the resume content above before downloading or searching for jobs.",
+    editableResumeNote: "You can edit the resume content above before downloading, regenerating, or searching for jobs.",
     // CompatibilityAnalysisStep
     analyzingCompatibilityMessage: "Analyzing compatibility...",
     waitingForAnalysisTitle: "Waiting for Analysis",
@@ -117,14 +119,14 @@ export const translations: Record<Locale, Record<string, string>> = {
     sectionTitle_ContactInformation: "CONTACT INFORMATION",
     sectionTitle_ProfessionalProfile: "PROFESSIONAL PROFILE",
     sectionTitle_WorkExperience: "WORK EXPERIENCE",
-    sectionTitle_Education: "EDUCATION", 
+    sectionTitle_Education: "EDUCATION",
     sectionTitle_Skills: "SKILLS",
     sectionTitle_Languages: "LANGUAGES",
     sectionTitle_Interests: "INTERESTS",
     sectionTitle_ContactInformation_es: "DETALLES PERSONALES",
     sectionTitle_ProfessionalProfile_es: "PERFIL PROFESIONAL",
     sectionTitle_WorkExperience_es: "EXPERIENCIA LABORAL",
-    sectionTitle_Education_es: "FORMACIÓN", 
+    sectionTitle_Education_es: "FORMACIÓN",
     sectionTitle_Skills_es: "HABILIDADES",
     sectionTitle_Languages_es: "IDIOMAS",
     sectionTitle_Interests_es: "INTERESES",
@@ -194,6 +196,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     langGerman: 'Alemán',
     // ResumeBuilderStep
     buildingResumeMessage: "Creando tu currículum personalizado...",
+    regeneratingResumeMessage: "Regenerando currículum...",
     tailoredResumeTitle: "Currículum Personalizado",
     aiGeneratedResumePlaceholder: "Tu currículum generado por IA aparecerá aquí. Puedes editarlo directamente.",
     aiCraftedResumeTitle: "Tu Currículum Creado por IA",
@@ -201,6 +204,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     tailoredResumeContentTitle: "Contenido del Currículum Personalizado (Editable):",
     downloadAsTextButton: "Descargar como Texto",
     downloadAsPdfButton: "Descargar como PDF",
+    regenerateResumeButton: "Regenerar Currículum",
     pdfDownloadNote: "La versión PDF intenta asemejarse a un estilo de currículum profesional utilizando el contenido de arriba.",
     explanationOfModificationsTitle: "Explicación de las Modificaciones:",
     happyWithResumePrompt: "Contento con tu nuevo currículum? Haz clic en \"Buscar Empleos\" para descubrir oportunidades que coincidan con este CV.",
@@ -209,7 +213,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     newCompatibilityLabel: "Nueva (CV con IA):",
     improvementLabel: "Mejora:",
     na: "N/D",
-    editableResumeNote: "Puedes editar el contenido del currículum arriba antes de descargarlo o buscar empleos.",
+    editableResumeNote: "Puedes editar el contenido del currículum arriba antes de descargarlo, regenerarlo o buscar empleos.",
     // CompatibilityAnalysisStep
     analyzingCompatibilityMessage: "Analizando compatibilidad...",
     waitingForAnalysisTitle: "Esperando Análisis",
@@ -243,7 +247,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     sectionTitle_ContactInformation: "DETALLES PERSONALES",
     sectionTitle_ProfessionalProfile: "PERFIL PROFESIONAL",
     sectionTitle_WorkExperience: "EXPERIENCIA LABORAL",
-    sectionTitle_Education: "FORMACIÓN", 
+    sectionTitle_Education: "FORMACIÓN",
     sectionTitle_Skills: "HABILIDADES",
     sectionTitle_Languages: "IDIOMAS",
     sectionTitle_Interests: "INTERESES",
@@ -259,3 +263,4 @@ export const getTranslation = (locale: Locale, key: string, params?: Record<stri
   }
   return text;
 };
+
