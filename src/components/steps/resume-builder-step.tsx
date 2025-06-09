@@ -5,9 +5,10 @@ import type { AIResumeBuilderOutput } from '@/ai/flows/ai-resume-builder';
 import type { CompatibilityOutput } from '@/ai/flows/resume-compatibility-analysis';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Wand2, FileType, TrendingUp, CheckCircle, AlertTriangle, Info, ArrowRight } from 'lucide-react';
+import { Download, FileText, Wand2, FileType, TrendingUp, CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import LoadingIndicator from '@/components/loading-indicator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea'; // Import Textarea
 import { Progress } from '@/components/ui/progress';
 import { jsPDF } from 'jspdf';
 import { useLanguage } from '@/contexts/language-context';
@@ -15,6 +16,8 @@ import type { Locale } from '@/lib/translations';
 
 interface ResumeBuilderStepProps {
   result: AIResumeBuilderOutput | null;
+  editedTailoredResume: string;
+  onEditedTailoredResumeChange: (newText: string) => void;
   loading: boolean;
   loadingMessageFromWizard?: string;
   profilePhotoDataUri?: string;
@@ -25,21 +28,25 @@ interface ResumeBuilderStepProps {
 
 const getSectionTitle = (t: Function, key: string, lang: Locale, fallback: string): string => {
   const title = t(key, undefined, { lng: lang });
-  return title === key ? fallback : title;
+  // Check if translation returned the key itself, indicating no translation found for that specific locale
+  return (title === key || title === `${key}_${lang}`) ? fallback : title;
 };
 
-export function ResumeBuilderStep({ 
-  result, 
-  loading, 
+
+export function ResumeBuilderStep({
+  result,
+  editedTailoredResume,
+  onEditedTailoredResumeChange,
+  loading,
   loadingMessageFromWizard,
-  profilePhotoDataUri, 
+  profilePhotoDataUri,
   resumeLanguage,
   initialCompatibilityResult,
-  newCompatibilityAnalysisResult 
+  newCompatibilityAnalysisResult
 }: ResumeBuilderStepProps) {
   const { t } = useLanguage();
 
-  if (loading) {
+  if (loading && (!result || !initialCompatibilityResult)) { // Show loading if main result or initial compat is not yet there
     return <LoadingIndicator message={loadingMessageFromWizard || t('buildingResumeMessage')} />;
   }
 
@@ -56,7 +63,8 @@ export function ResumeBuilderStep({
     );
   }
 
-  const { tailoredResume, explanation } = result;
+  // Explanation comes directly from the initial AI builder result
+  const { explanation } = result;
   const initialScore = initialCompatibilityResult?.compatibilityScore;
   const newScore = newCompatibilityAnalysisResult?.compatibilityScore;
   const improvement = (initialScore != null && newScore != null) ? newScore - initialScore : null;
@@ -70,17 +78,17 @@ export function ResumeBuilderStep({
   };
 
   const handleDownloadText = () => {
-    const blob = new Blob([tailoredResume], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([editedTailoredResume], { type: 'text/plain;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'tailored_resume.txt';
+    link.download = 'NailedJob_Resume.txt';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const handleDownloadPdf = () => {
-    if (!tailoredResume) return;
+    if (!editedTailoredResume) return;
 
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -113,6 +121,7 @@ export function ResumeBuilderStep({
         currentPage++;
         yLeft = margin;
         yRight = margin;
+        // Redraw left column background on new page
         doc.setFillColor(leftColBGColor[0], leftColBGColor[1], leftColBGColor[2]);
         doc.rect(0, 0, leftColWidth, pageHeight, 'F');
         return margin; 
@@ -127,34 +136,50 @@ export function ResumeBuilderStep({
     
     drawLeftColumnBackground();
 
-    const resumeLines = tailoredResume.split('\n').map(line => line.trim()).filter(line => line);
+    // Use editedTailoredResume for PDF content
+    const resumeLines = editedTailoredResume.split('\n').map(line => line.trim()).filter(line => line);
     const candidateFullName = resumeLines.length > 0 ? resumeLines.shift()?.trim() || "Candidate Name" : "Candidate Name";
     
     const currentLocale = resumeLanguage.toLowerCase().startsWith('es') ? 'es' : 'en';
     
+    // Ensure fallback titles are robust if t() doesn't find the specific key
     const sectionTitlesMap: Record<string, string> = {
         CONTACT_INFORMATION: getSectionTitle(t, 'sectionTitle_ContactInformation', currentLocale, currentLocale === 'es' ? 'DETALLES PERSONALES' : 'CONTACT INFORMATION'),
         PROFESSIONAL_PROFILE: getSectionTitle(t, 'sectionTitle_ProfessionalProfile', currentLocale, currentLocale === 'es' ? 'PERFIL PROFESIONAL' : 'PROFESSIONAL PROFILE'),
         WORK_EXPERIENCE: getSectionTitle(t, 'sectionTitle_WorkExperience', currentLocale, currentLocale === 'es' ? 'EXPERIENCIA LABORAL' : 'WORK EXPERIENCE'),
         EDUCATION: getSectionTitle(t, 'sectionTitle_Education', currentLocale, currentLocale === 'es' ? 'FORMACIÓN' : 'EDUCATION'),
         SKILLS: getSectionTitle(t, 'sectionTitle_Skills', currentLocale, currentLocale === 'es' ? 'HABILIDADES' : 'SKILLS'),
-        LANGUAGES: getSectionTitle(t, 'sectionTitle_Languages', currentLocale, currentLocale === 'es' ? 'IDIOMAS' : 'LANGUAGES'),
+        LANGUAGES: getSectionTitle(t, 'sectionTitle_Languages', currentLocale, currentLocale === 'es' ? 'IDIOMAS' : 'IDIOMAS'),
         INTERESTS: getSectionTitle(t, 'sectionTitle_Interests', currentLocale, currentLocale === 'es' ? 'INTERESES' : 'INTERESTS'),
     };
+
 
     const sectionContent: Record<string, string[]> = {};
     let currentSectionKey: string | null = null;
 
-    for (const line of resumeLines) {
+    for (const line of resumeLines) { // resumeLines is from editedTailoredResume
         const trimmedLineUpper = line.trim().toUpperCase();
         let isTitle = false;
         for (const key in sectionTitlesMap) {
-            if (trimmedLineUpper.startsWith(sectionTitlesMap[key].toUpperCase()) && 
-                trimmedLineUpper.substring(sectionTitlesMap[key].length).trim().startsWith(':')) {
+            // More robust title matching: allow for variations in spacing or case around the colon
+            const titlePattern = new RegExp(`^${sectionTitlesMap[key].toUpperCase()}\\s*:\\s*`, 'i');
+            if (titlePattern.test(trimmedLineUpper)) {
+                currentSectionKey = key;
+                sectionContent[currentSectionKey] = [];
+                // Extract content after the title and colon
+                const contentAfterTitle = line.replace(titlePattern, '').trim();
+                if (contentAfterTitle) {
+                    sectionContent[currentSectionKey].push(contentAfterTitle);
+                }
+                isTitle = true;
+                break;
+            } else if (trimmedLineUpper.startsWith(sectionTitlesMap[key].toUpperCase()) && 
+                       trimmedLineUpper.substring(sectionTitlesMap[key].length).trim().startsWith(':')) {
+                // Fallback for simple colon check if regex fails or for very specific cases
                 currentSectionKey = key;
                 sectionContent[currentSectionKey] = [];
                 const contentAfterTitle = line.substring(sectionTitlesMap[key].length).replace(/^:\s*/, '').trim();
-                if (contentAfterTitle) {
+                 if (contentAfterTitle) {
                     sectionContent[currentSectionKey].push(contentAfterTitle);
                 }
                 isTitle = true;
@@ -166,20 +191,20 @@ export function ResumeBuilderStep({
         }
     }
     
-    yLeft = addPageIfNeeded(yLeft, 0);
+    yLeft = addPageIfNeeded(yLeft, 0); // Ensure we're on a page
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(18);
     doc.setTextColor(nameColor[0], nameColor[1], nameColor[2]);
     const nameLines = doc.splitTextToSize(candidateFullName.toUpperCase(), leftColContentWidth - 5); 
     nameLines.forEach((nameLine: string) => {
-        yLeft = addPageIfNeeded(yLeft, 8);
+        yLeft = addPageIfNeeded(yLeft, 8); // Check space for each line of the name
         doc.text(nameLine, margin / 2 + 2, yLeft);
         yLeft += 7;
     });
     yLeft += 3; 
     
     if (profilePhotoDataUri) {
-        yLeft = addPageIfNeeded(yLeft, 40);
+        yLeft = addPageIfNeeded(yLeft, 40); // Check space for photo
         const photoSize = 35;
         const photoX = (leftColWidth - photoSize) / 2; 
         try {
@@ -203,7 +228,7 @@ export function ResumeBuilderStep({
     
     const contactInfoContent = sectionContent['CONTACT_INFORMATION'] || [];
     if (contactInfoContent.length > 0) {
-        yLeft = addPageIfNeeded(yLeft, 8);
+        yLeft = addPageIfNeeded(yLeft, 8); // Check space for title
         doc.setFont('Helvetica', 'bold');
         doc.setFontSize(11);
         doc.setTextColor(sectionTitleTextLeftCol[0], sectionTitleTextLeftCol[1], sectionTitleTextLeftCol[2]);
@@ -227,7 +252,7 @@ export function ResumeBuilderStep({
             if (label) {
                  const prefixesToRemove = ["email:", "e-mail:", "teléfono:", "telefono:", "phone:", "móvil:", "mobile:", "web:", "dirección:", "direccion:", "address:", "fecha de nacimiento:", "date of birth:", "nacimiento:","dir:"];
                  prefixesToRemove.forEach(prefix => {
-                    if (value.toLowerCase().startsWith(prefix)) {
+                    if (value.toLowerCase().startsWith(prefix.toLowerCase())) { // case-insensitive prefix removal
                         value = value.substring(prefix.length).trim();
                     }
                 });
@@ -235,7 +260,7 @@ export function ResumeBuilderStep({
             
             const contactLines = doc.splitTextToSize((label ? label : "") + value, leftColContentWidth);
             contactLines.forEach((l:string) => {
-                 yLeft = addPageIfNeeded(yLeft, 4);
+                 yLeft = addPageIfNeeded(yLeft, 4); // Check space for each line of contact info
                  doc.text(l, margin/2, yLeft);
                  yLeft += 3.5; 
             });
@@ -243,11 +268,12 @@ export function ResumeBuilderStep({
         yLeft += 5;
     }
 
+    // Helper to draw left column sections
     const drawLeftSection = (key: string, titleSize = 11, bodySize = 8.5, bodyLineHeight = 3.5) => {
         const content = sectionContent[key] || [];
         const title = sectionTitlesMap[key];
-        if (content.length > 0 || (key === 'PROFESSIONAL_PROFILE' && content.length === 0 && tailoredResume.toUpperCase().includes(title.toUpperCase()))) {
-            yLeft = addPageIfNeeded(yLeft, 8);
+        if (content.length > 0 || (key === 'PROFESSIONAL_PROFILE' && editedTailoredResume.toUpperCase().includes(title.toUpperCase()))) { // Check against edited resume
+            yLeft = addPageIfNeeded(yLeft, 8); // Space for title
             doc.setFont('Helvetica', 'bold');
             doc.setFontSize(titleSize);
             doc.setTextColor(sectionTitleTextLeftCol[0], sectionTitleTextLeftCol[1], sectionTitleTextLeftCol[2]);
@@ -260,7 +286,7 @@ export function ResumeBuilderStep({
             content.forEach(line => {
                 const textLines = doc.splitTextToSize(line, leftColContentWidth);
                 textLines.forEach((l:string) => {
-                    yLeft = addPageIfNeeded(yLeft, bodyLineHeight + 0.5);
+                    yLeft = addPageIfNeeded(yLeft, bodyLineHeight + 0.5); // Space for each line
                     doc.text(l, margin/2, yLeft);
                     yLeft += bodyLineHeight;
                 });
@@ -279,12 +305,13 @@ export function ResumeBuilderStep({
         const title = sectionTitlesMap[key];
         const allSectionTitlesForParsing = Object.values(sectionTitlesMap);
 
+        // Check against edited resume for existence of title
         if (content.length > 0 || 
-            (key === 'WORK_EXPERIENCE' && tailoredResume.toUpperCase().includes(title.toUpperCase())) ||
-            (key === 'EDUCATION' && tailoredResume.toUpperCase().includes(title.toUpperCase())) ||
-            (key === 'SKILLS' && tailoredResume.toUpperCase().includes(title.toUpperCase()))) {
+            (key === 'WORK_EXPERIENCE' && editedTailoredResume.toUpperCase().includes(title.toUpperCase())) ||
+            (key === 'EDUCATION' && editedTailoredResume.toUpperCase().includes(title.toUpperCase())) ||
+            (key === 'SKILLS' && editedTailoredResume.toUpperCase().includes(title.toUpperCase()))) {
             
-            yRight = addPageIfNeeded(yRight, 10);
+            yRight = addPageIfNeeded(yRight, 10); // Space for title and line
             doc.setFont('Helvetica', 'bold');
             doc.setFontSize(14);
             doc.setTextColor(sectionTitleRightCol[0], sectionTitleRightCol[1], sectionTitleRightCol[2]);
@@ -318,7 +345,7 @@ export function ResumeBuilderStep({
                                        line.match(/\b(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic|Jan|Apr|Jul|Aug|Sept|Dec)\b\.?\s\d{4}/i);
 
                 if (key === 'WORK_EXPERIENCE' && isLikelyActualTitle && !isLikelyDateLine) {
-                    yRight = addPageIfNeeded(yRight, itemLineHeight + (i > 0 ? 2 : 0) ); 
+                    yRight = addPageIfNeeded(yRight, itemLineHeight + (i > 0 ? 2 : 0) ); // Added vertical spacing
 
                     let positionAndCompany = line;
                     let location = "";
@@ -382,7 +409,7 @@ export function ResumeBuilderStep({
                         doc.text(l, rightColX, yRight);
                         yRight = addPageIfNeeded(yRight + itemLineHeight, itemLineHeight);
                     });
-                    if (textLines.length > 0) yRight -= itemLineHeight;
+                    if (textLines.length > 0) yRight -= itemLineHeight; // Adjust if lines were added
                     yRight += itemLineHeight;
                     isFirstInSubSection = false;
 
@@ -390,7 +417,7 @@ export function ResumeBuilderStep({
                     yRight = addPageIfNeeded(yRight, itemLineHeight);
                     doc.setFont('Helvetica', 'italic');
                     doc.setFontSize(dateFontSize);
-                    doc.setTextColor(128, 128, 128); 
+                    doc.setTextColor(128, 128, 128); // Grey color for dates
                     const textLines = doc.splitTextToSize(line, rightColWidth);
                     textLines.forEach((l:string) => {
                         doc.text(l, rightColX, yRight);
@@ -398,25 +425,25 @@ export function ResumeBuilderStep({
                     });
                     if (textLines.length > 0) yRight -= itemLineHeight; 
                     yRight += itemLineHeight;
-                    doc.setTextColor(bodyTextRightCol[0], bodyTextRightCol[1], bodyTextRightCol[2]); 
+                    doc.setTextColor(bodyTextRightCol[0], bodyTextRightCol[1], bodyTextRightCol[2]); // Reset text color
                     isFirstInSubSection = false; 
                 
                 } else if (key === 'SKILLS' && (line.toLowerCase().startsWith('técnicas:') || line.toLowerCase().startsWith('technical:') || line.toLowerCase().startsWith('habilidades técnicas:'))) {
-                    yRight = addPageIfNeeded(yRight + 2, itemLineHeight);
+                    yRight = addPageIfNeeded(yRight + 2, itemLineHeight); // Add a bit more space before sub-title
                     doc.setFont('Helvetica', 'bold');
                     doc.setFontSize(itemFontSize);
                     doc.text(line, rightColX, yRight);
                     yRight += itemLineHeight;
                     isFirstInSubSection = false;
                 } else if (key === 'SKILLS' && (line.toLowerCase().startsWith('blandas:') || line.toLowerCase().startsWith('soft:') || line.toLowerCase().startsWith('habilidades blandas:'))) {
-                    yRight = addPageIfNeeded(yRight + 2, itemLineHeight);
+                    yRight = addPageIfNeeded(yRight + 2, itemLineHeight); // Add a bit more space before sub-title
                     doc.setFont('Helvetica', 'bold');
                     doc.setFontSize(itemFontSize);
                     doc.text(line, rightColX, yRight);
                     yRight += itemLineHeight;
                     isFirstInSubSection = false;
                 }
-                else { 
+                else { // Default description lines
                     yRight = addPageIfNeeded(yRight, itemLineHeight);
                     doc.setFont('Helvetica', 'normal');
                     doc.setFontSize(descriptionFontSize);
@@ -427,7 +454,7 @@ export function ResumeBuilderStep({
                     });
                      if (textLines.length > 0) yRight -= itemLineHeight; 
                      yRight += itemLineHeight;
-                    if (line.trim() !== "") isFirstInSubSection = true; 
+                    if (line.trim() !== "") isFirstInSubSection = true; // Next non-empty line could be a new item
                 }
             }
             yRight += 5; 
@@ -505,26 +532,34 @@ export function ResumeBuilderStep({
 
         <div>
           <h3 className="text-lg font-semibold text-foreground mb-2">{t('tailoredResumeContentTitle')}</h3>
-          <ScrollArea className="h-96 w-full rounded-md border p-4 bg-muted/50">
-            <pre className="text-sm whitespace-pre-wrap break-words font-sans">{tailoredResume}</pre>
-          </ScrollArea>
+          <Textarea
+            value={editedTailoredResume}
+            onChange={(e) => onEditedTailoredResumeChange(e.target.value)}
+            placeholder={t('aiGeneratedResumePlaceholder')}
+            rows={25}
+            className="text-sm whitespace-pre-wrap break-words font-sans leading-relaxed w-full rounded-md border p-4 bg-muted/50 focus-visible:ring-primary"
+            aria-label={t('tailoredResumeContentTitle')}
+          />
+          <p className="text-xs text-muted-foreground mt-1">{t('editableResumeNote')}</p>
           <div className="flex gap-2 mt-4">
-            <Button onClick={handleDownloadText}>
+            <Button onClick={handleDownloadText} disabled={!editedTailoredResume.trim()}>
               <Download className="mr-2 h-4 w-4" /> {t('downloadAsTextButton')}
             </Button>
-            <Button onClick={handleDownloadPdf} variant="outline">
+            <Button onClick={handleDownloadPdf} variant="outline" disabled={!editedTailoredResume.trim()}>
               <FileType className="mr-2 h-4 w-4" /> {t('downloadAsPdfButton')}
             </Button>
           </div>
            <p className="text-xs text-muted-foreground mt-2">{t('pdfDownloadNote')}</p>
         </div>
 
-        <div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">{t('explanationOfModificationsTitle')}</h3>
-          <ScrollArea className="h-48 w-full rounded-md border p-3 bg-muted/50">
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{explanation}</p>
-          </ScrollArea>
-        </div>
+        {explanation && (
+          <div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">{t('explanationOfModificationsTitle')}</h3>
+            <ScrollArea className="h-48 w-full rounded-md border p-3 bg-muted/50">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{explanation}</p>
+            </ScrollArea>
+          </div>
+        )}
          <p className="text-sm text-center text-muted-foreground">
           {t('happyWithResumePrompt')}
         </p>
