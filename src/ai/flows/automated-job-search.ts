@@ -3,9 +3,9 @@
 'use server';
 
 /**
- * @fileOverview Flow for searching job postings using the generated CV content.
+ * @fileOverview Flow for searching job postings using the generated CV content and an optional job title.
  *
- * - automatedJobSearch - A function that takes CV text and searches for relevant jobs.
+ * - automatedJobSearch - A function that takes CV text and an optional job title, and searches for relevant jobs.
  * - AutomatedJobSearchInput - The input type for the automatedJobSearch function.
  * - AutomatedJobSearchOutput - The return type for the automatedJobSearch function.
  */
@@ -18,6 +18,10 @@ const AutomatedJobSearchInputSchema = z.object({
   resume: z
     .string()
     .describe('The resume to use for searching job postings.'),
+  jobTitle: z
+    .string()
+    .optional()
+    .describe('A specific job title provided by the user to refine the search.'),
 });
 export type AutomatedJobSearchInput = z.infer<typeof AutomatedJobSearchInputSchema>;
 
@@ -44,15 +48,26 @@ export async function automatedJobSearch(input: AutomatedJobSearchInput): Promis
 const searchJobsPrompt = ai.definePrompt({
   name: 'searchJobsPrompt',
   tools: [findJobsTool],
-  input: {schema: AutomatedJobSearchInputSchema}, // Takes the resume
+  input: {schema: AutomatedJobSearchInputSchema}, // Takes the resume and optional jobTitle
   output: {schema: SearchToolOutputSchema}, // Expects the tool's output structure
   prompt: `You are an expert job search assistant.
-Based on the following CV text provided, extract key skills, relevant experiences, and potential job titles.
+{{#if jobTitle}}
+The user has provided a specific job title: "{{jobTitle}}". This job title should be the primary focus for your search.
+You may also consider keywords from the resume to complement the job title if it helps refine the search.
+{{else}}
+Based on the following CV text provided, extract key skills, relevant experiences, and potential job titles to use as search keywords.
+{{/if}}
+
 CV Text:
 {{{resume}}}
 
-Use these extracted keywords to search for jobs.
-You MUST use the 'findJobsTool' to find relevant job postings.
+Use the 'findJobsTool' to find relevant job postings.
+{{#if jobTitle}}
+You MUST pass the provided "{{jobTitle}}" as the 'jobTitle' parameter to the 'findJobsTool'. You can also pass extracted keywords from the resume to the 'keywords' parameter of the tool if you deem them relevant for refining the search alongside the job title.
+{{else}}
+You MUST pass the extracted keywords from the resume to the 'keywords' parameter of the 'findJobsTool'.
+{{/if}}
+
 The search should be conducted for jobs in "Spain".
 The tool will automatically search InfoJobs, LinkedIn, and Indeed.
 Aim to find up to 10 job postings that appear to be distinct based on their (simulated) details.
@@ -70,6 +85,7 @@ const searchJobsFlow = ai.defineFlow(
   },
   async (input) => {
     try {
+      // Pass the entire input (which now includes optional jobTitle) to the prompt
       const llmResponse = await searchJobsPrompt(input);
 
       if (llmResponse.output?.jobSearchResults && llmResponse.output.jobSearchResults.length > 0) {
@@ -128,4 +144,3 @@ const searchJobsFlow = ai.defineFlow(
     }
   }
 );
-

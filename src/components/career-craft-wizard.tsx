@@ -26,6 +26,7 @@ if (typeof window !== 'undefined') {
 
 
 export interface CareerCraftFormState {
+  jobOfferTitle: string;
   jobOfferText: string;
   jobOfferUrl: string;
   resumeText: string;
@@ -38,6 +39,7 @@ export interface CareerCraftFormState {
 }
 
 const initialFormState: CareerCraftFormState = {
+  jobOfferTitle: '',
   jobOfferText: '',
   jobOfferUrl: '',
   resumeText: '',
@@ -357,7 +359,10 @@ export default function CareerCraftWizard() {
       setLoading(true);
       setLoadingMessage(t('searchingJobsMessage'));
       try {
-        const input: AutomatedJobSearchInput = { resume: resumeTextForSearch };
+        const input: AutomatedJobSearchInput = {
+          resume: resumeTextForSearch,
+          jobTitle: formState.jobOfferTitle || undefined,
+        };
         const result = await automatedJobSearch(input);
         setJobListingsResult(result);
         setCurrentStep(4);

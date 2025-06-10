@@ -28,9 +28,9 @@ export const JobPostingSchema = z.object({
 export type JobPosting = z.infer<typeof JobPostingSchema>;
 
 export const FindJobsToolInputSchema = z.object({
+  jobTitle: z.string().optional().describe('The specific job title to search for, if provided by the user.'),
   keywords: z.array(z.string()).min(1).describe('An array of keywords to search for (e.g., skills, job titles from a CV).'),
   country: z.string().describe('The country to search for jobs in (e.g., "Spain").'),
-  // jobPortals: z.array(z.string()).min(1).describe('Specific job portals to simulate searching on (e.g., ["InfoJobs", "LinkedIn", "Indeed"]).'), // REMOVED
   limit: z.number().optional().default(10).describe('Maximum number of job postings to return.'),
 });
 export type FindJobsToolInput = z.infer<typeof FindJobsToolInputSchema>;
@@ -38,55 +38,70 @@ export type FindJobsToolInput = z.infer<typeof FindJobsToolInputSchema>;
 export const findJobsTool = ai.defineTool(
   {
     name: 'findJobsTool',
-    description: 'Simulates searching for job postings on InfoJobs, LinkedIn, and Indeed based on keywords and location. Returns a list of mock job postings with links to real search pages on those portals. For the purpose of this simulation, assume jobs are recent (less than 30 days old).',
+    description: 'Simulates searching for job postings on InfoJobs, LinkedIn, and Indeed based on a primary job title (if provided) and/or keywords, and location. Returns a list of mock job postings with links to real search pages on those portals. For the purpose of this simulation, assume jobs are recent (less than 30 days old).',
     inputSchema: FindJobsToolInputSchema,
     outputSchema: z.array(JobPostingSchema),
   },
-  async ({ keywords, country, limit }) => { // jobPortals removed from parameters
-    const jobPortals = ["InfoJobs", "LinkedIn", "Indeed"]; // Hardcoded inside the tool
+  async ({ jobTitle, keywords, country, limit }) => {
+    const jobPortals = ["InfoJobs", "LinkedIn", "Indeed"];
     const mockJobs: JobPosting[] = [];
     const companies = ["Tech Solutions Inc.", "Global Innovations Ltd.", "Future Enterprises", "Creative Minds Co.", "Innovatech Corp", "Synergy Systems"];
     const baseJobTitles = ["Software Engineer", "Product Manager", "Data Analyst", "UX Designer", "Marketing Specialist", "Project Manager", "Business Analyst"];
     const locationsSpain = ["Madrid", "Barcelona", "Valencia", "Sevilla", "Zaragoza", "Malaga", "Bilbao"];
 
-    const encodedKeywords = encodeURIComponent(keywords.join(" "));
+    let mainQuery = "";
+    if (jobTitle) {
+      mainQuery = jobTitle;
+      if (keywords && keywords.length > 0) {
+        // Optionally combine jobTitle with other keywords.
+        // For now, we'll keep it simple and let jobTitle take precedence if provided,
+        // or you could append: mainQuery += " " + keywords.join(" ");
+        // The LLM prompt might already handle the combination logic by how it passes keywords.
+      }
+    } else if (keywords && keywords.length > 0) {
+      mainQuery = keywords.join(" ");
+    } else {
+      // Fallback if neither jobTitle nor keywords are provided (should be handled by input schema)
+      mainQuery = "trabajo"; // Generic term for "job"
+    }
+    
+    const encodedQuery = encodeURIComponent(mainQuery);
     const encodedCountry = encodeURIComponent(country);
 
     const getPortalSearchLink = (portal: string): string => {
       const lowerPortal = portal.toLowerCase();
       if (lowerPortal.includes("infojobs")) {
-        return `https://www.infojobs.net/jobsearch/search-results/list.xhtml?keyword=${encodedKeywords}`;
+        return `https://www.infojobs.net/jobsearch/search-results/list.xhtml?keyword=${encodedQuery}`;
       }
       if (lowerPortal.includes("linkedin")) {
-        return `https://www.linkedin.com/jobs/search/?keywords=${encodedKeywords}&location=${encodedCountry}`;
+        return `https://www.linkedin.com/jobs/search/?keywords=${encodedQuery}&location=${encodedCountry}`;
       }
       if (lowerPortal.includes("indeed")) {
         let indeedDomain = "indeed.com";
         if (country.toLowerCase() === "spain") {
             indeedDomain = "es.indeed.com";
         }
-        return `https://${indeedDomain}/jobs?q=${encodedKeywords}&l=${encodedCountry}`;
+        return `https://${indeedDomain}/jobs?q=${encodedQuery}&l=${encodedCountry}`;
       }
-      // Fallback generic search link for other portals
-      return `https://www.google.com/search?q=${encodedKeywords}+jobs+in+${encodedCountry}+site%3A${encodeURIComponent(portal)}`;
+      return `https://www.google.com/search?q=${encodedQuery}+jobs+in+${encodedCountry}+site%3A${encodeURIComponent(portal)}`;
     };
 
     const actualLimit = limit || 10;
 
     for (let i = 0; i < actualLimit; i++) {
-      const portal = jobPortals[i % jobPortals.length]; // Uses the hardcoded jobPortals
+      const portal = jobPortals[i % jobPortals.length];
       const company = companies[i % companies.length];
-      const baseTitle = baseJobTitles[i % baseJobTitles.length];
+      const baseTitle = jobTitle || baseJobTitles[i % baseJobTitles.length];
       const location = locationsSpain[i % locationsSpain.length]; 
       const daysAgo = Math.floor(Math.random() * 28) + 1; // 1 to 28 days
       
-      const jobTitle = `Mock: ${baseTitle}${keywords[0] ? ` (Related to: ${keywords[0]})` : ''}`;
+      const displayJobTitle = `Mock: ${baseTitle}${keywords && keywords.length > 0 && !jobTitle ? ` (Related to: ${keywords[0]})` : ''}`;
 
       mockJobs.push({
-        title: jobTitle,
+        title: displayJobTitle,
         company: company,
         location: `${location}, ${country}`,
-        descriptionSnippet: `Simulated opportunity for a ${baseTitle} at ${company}. Seeking skills in ${keywords.join(", ")}. This is a mock job listing.`,
+        descriptionSnippet: `Simulated opportunity for a ${baseTitle} at ${company}. Seeking skills in ${mainQuery}. This is a mock job listing.`,
         link: getPortalSearchLink(portal),
         portal: portal,
         postedDate: `${daysAgo} days ago`

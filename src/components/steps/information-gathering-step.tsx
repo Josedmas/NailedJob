@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Image from 'next/image';
-import { UploadCloud, FileText, Link2, Loader2 } from 'lucide-react';
+import { UploadCloud, FileText, Link2, Loader2, Briefcase } from 'lucide-react';
 import { useLanguage } from '@/contexts/language-context';
 
 interface InformationGatheringStepProps {
@@ -30,6 +30,22 @@ export function InformationGatheringStep({ formState, onInputChange, onFileChang
           <CardDescription>{t('jobOfferDescriptionEnhanced')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="jobOfferTitle">
+                <Briefcase className="inline-block mr-1 h-4 w-4 align-text-bottom" /> 
+                {t('jobOfferTitleLabel')}
+            </Label>
+            <Input
+              id="jobOfferTitle"
+              name="jobOfferTitle"
+              type="text"
+              value={formState.jobOfferTitle}
+              onChange={onInputChange}
+              placeholder={t('jobOfferTitlePlaceholder')}
+              className="mt-1"
+              disabled={isLoadingFile}
+            />
+          </div>
           <div>
             <Label htmlFor="jobOfferText">
                 <FileText className="inline-block mr-1 h-4 w-4 align-text-bottom" /> 
