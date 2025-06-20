@@ -6,6 +6,7 @@ export const translations: Record<Locale, Record<string, string>> = {
   en: {
     // AppHeader
     appName: 'NailedJob',
+    appLogoAlt: 'NailedJob Logo', // Added alt text for logo
     languageSelectorLabel: 'Language',
     // CareerCraftWizard steps
     stepCounter: 'Step {currentStep} of 4',
@@ -136,6 +137,7 @@ export const translations: Record<Locale, Record<string, string>> = {
   es: {
     // AppHeader
     appName: 'NailedJob',
+    appLogoAlt: 'Logo de NailedJob', // Added alt text for logo
     languageSelectorLabel: 'Idioma',
     // CareerCraftWizard steps
     stepCounter: 'Paso {currentStep} de 4',
@@ -267,4 +269,3 @@ export const getTranslation = (locale: Locale, key: string, params?: Record<stri
   }
   return text;
 };
-

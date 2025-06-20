@@ -1,8 +1,9 @@
 
 "use client";
 
-import { Briefcase, Languages } from 'lucide-react';
+import { Languages } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image'; // Import next/image
 import { useLanguage } from '@/contexts/language-context';
 import type { Locale } from '@/lib/translations';
 import {
@@ -25,7 +26,14 @@ export default function AppHeader() {
     <header className="bg-card border-b border-border sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-primary hover:opacity-80 transition-opacity">
-          <Briefcase className="h-8 w-8" />
+          {/* Replace Briefcase icon with Image component */}
+          <Image
+            src="/logo.png" // Assumes logo.png is in the public folder
+            alt={t('appLogoAlt') || "NailedJob Logo"}
+            width={32} // Specify a width for your logo
+            height={32} // Specify a height for your logo
+            className="h-8 w-8" // You might want to adjust or remove this class depending on the image aspect ratio
+          />
           <span>{t('appName')}</span>
         </Link>
         <div className="flex items-center gap-2">
