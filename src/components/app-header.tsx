@@ -30,8 +30,8 @@ export default function AppHeader() {
           <Image
             src="/logo.png" // Assumes logo.png is in the public folder
             alt={t('appLogoAlt') || "NailedJob Logo"}
-            width={40} // Increased from 32
-            height={40} // Increased from 32
+            width={80} // Increased from 32
+            height={80} // Increased from 32
             className="h-10 w-10" // Increased from h-8 w-8
           />
           <span>{t('appName')}</span>
